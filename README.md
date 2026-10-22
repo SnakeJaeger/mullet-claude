@@ -370,3 +370,9 @@ clock, tray), and the tablet menu with its Home / Docs / Desktop and
 Screensaver / Log out / Shut down sidebar.
 
 ![Mullet Claude: the original tablet-mode sketches](screenshots/mullet-claude-sketch.webp)
+
+And the man himself:
+
+<p align="center">
+  <img src="screenshots/mullet-claude-portrait.webp" alt="Mullet Claude: friend of otters, children, and fortigates" width="480">
+</p>
