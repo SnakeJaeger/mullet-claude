@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "daa.tablet-keyboard",
+  "name": "Tablet keyboard button",
+  "version": "1.0.0",
+  "author": "daa",
+  "description": "Shows or hides the on-screen keyboard (tablet bar)",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Tablet keyboard button",
+    "description": "Shows or hides the on-screen keyboard (tablet bar)",
+    "category": "System",
+    "allowMultiple": false
+  }
+}

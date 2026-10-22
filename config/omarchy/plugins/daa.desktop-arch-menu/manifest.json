@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "daa.desktop-arch-menu",
+  "name": "Arch menu button",
+  "version": "1.0.0",
+  "author": "daa",
+  "description": "Nerd Font Arch logo that opens the Omarchy menu",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Arch menu button",
+    "description": "Nerd Font Arch logo that opens the Omarchy menu",
+    "category": "Compositor",
+    "allowMultiple": false
+  }
+}

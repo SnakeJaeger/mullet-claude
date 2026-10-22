@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "daa.desktop-app-name",
+  "name": "App name",
+  "version": "1.0.0",
+  "author": "daa",
+  "description": "Short name of the focused app (firefox, dolphin, ...)",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "App name",
+    "description": "Short name of the focused app",
+    "category": "Compositor",
+    "allowMultiple": false
+  }
+}

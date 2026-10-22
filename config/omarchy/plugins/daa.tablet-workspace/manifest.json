@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "daa.tablet-workspace",
+  "name": "Tablet workspace button",
+  "version": "1.0.0",
+  "author": "daa",
+  "description": "Current workspace number; tap opens the workspace menu (tablet bar)",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Workspaces.qml"
+  },
+  "barWidget": {
+    "displayName": "Tablet workspace button",
+    "description": "Current workspace number; tap opens the workspace menu (tablet bar)",
+    "category": "Compositor",
+    "allowMultiple": false
+  }
+}

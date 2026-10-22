@@ -1,0 +1,29 @@
+#!/bin/bash
+# Open a comic archive in Foliate (touch-friendly, pages fill the screen).
+# Foliate reads CBZ directly; CBR (RAR) is repacked into a CBZ under
+# ~/.cache/comic-open first. Uses unrar when installed, else bsdtar (RAR4 only).
+set -e
+
+file=$(realpath "$1")
+case "${file,,}" in
+  *.cbz|*.zip) exec foliate "$file" ;;
+esac
+
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/comic-open"
+name=$(basename "${file%.*}")
+out="$cache/$name.cbz"
+mkdir -p "$cache"
+
+if [[ ! -s $out || $file -nt $out ]]; then
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+  if command -v unrar >/dev/null; then
+    unrar x -inul "$file" "$tmp/"
+  elif ! bsdtar -xf "$file" -C "$tmp" 2>/dev/null; then
+    notify-send "Can't open $name" "This CBR needs unrar: omarchy pkg add unrar"
+    exit 1
+  fi
+  (cd "$tmp" && zip -qr "$out.part" .) && mv "$out.part" "$out"
+fi
+
+exec foliate "$out"

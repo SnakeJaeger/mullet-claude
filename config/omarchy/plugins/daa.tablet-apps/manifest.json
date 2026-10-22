@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "daa.tablet-apps",
+  "name": "Tablet apps button",
+  "version": "1.0.0",
+  "author": "daa",
+  "description": "Opens the touch apps menu (tablet bar)",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Tablet apps button",
+    "description": "Opens the touch apps menu (tablet bar)",
+    "category": "System",
+    "allowMultiple": false
+  }
+}

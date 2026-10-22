@@ -1,0 +1,10 @@
+[font]
+base-size = 11
+
+# Borderless bar popups (calendar, weather, audio, network, …), the OSD and
+# bar tooltips.
+[popups]
+border-width = 0
+
+[tooltip]
+border-width = 0

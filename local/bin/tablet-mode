@@ -1,0 +1,316 @@
+#!/bin/bash
+# Tablet mode for the Yoga 9 2-in-1.
+#
+#   tablet-mode on|off|toggle   enter / leave tablet mode
+#   tablet-mode status          prints "on" or "off"
+#   tablet-mode keyboard        show / hide the on-screen keyboard
+#   tablet-mode rotate [N]      rotate the screen (0-3 = 0/90/180/270deg; no N = next)
+#   tablet-mode orient N        rotate to N and lock auto-rotate there
+#   tablet-mode autorotate      follow the rotation sensor (started by "on" if present)
+#   tablet-mode rotate-lock     toggle auto-rotate (locked = stay put)
+#   tablet-mode workspaces      list workspaces for the menu (label TAB id TAB current)
+#   tablet-mode workspace N|new go to workspace N, or the first empty one
+#                               ("new" is refused while the current one is empty)
+#   tablet-mode window focus|close ADDRESS
+#   tablet-mode hide-scratchpads  retract any scratchpad / dropdown showing
+#   tablet-mode dismiss         hide keyboard, scratchpads, menus and bar popups
+#                               (a tap on the wallpaper in tablet mode)
+#
+# Folding the screen back fires "on" and unfolding fires "off"
+# (~/.config/hypr/tablet_mode.lua). The bar button and the "tablet" menu
+# (omarchy menu summon tablet) call the same commands.
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/tablet-mode"
+STATE="$STATE_DIR/state"
+OUTPUT="eDP-1"
+KEYBOARD="at-translated-set-2-keyboard"
+TOUCHPAD="cirq1080:00-0488:1082-touchpad"
+TOUCHPAD_MOUSE="cirq1080:00-0488:1082-mouse"
+TOUCH="wacom-hid-544c-finger"
+PEN="wacom-hid-544c-pen"
+GESTURES="$HOME/.config/tablet-mode/gestures"
+SHELL_JSON="$HOME/.config/omarchy/shell.json"
+SHELL_TOML="$HOME/.config/omarchy/shell.toml"
+# Bar edge per transform, so the bar stays on the panel's physical right edge.
+BAR_EDGE=(right bottom left top)
+
+mkdir -p "$STATE_DIR"
+
+status() { [[ $(cat "$STATE" 2>/dev/null) == on ]] && echo on || echo off; }
+
+osd() { omarchy osd -m "$1" >/dev/null 2>&1 & }
+
+device_enabled() {
+  hyprctl eval "hl.device({ name = \"$1\", enabled = $2 })" >/dev/null
+}
+
+# Rotate the panel and keep finger + pen input lined up with it.
+rotate_to() {
+  local t=$1
+  hyprctl eval "
+    hl.monitor({ output = \"$OUTPUT\", mode = \"preferred\", position = \"auto\", scale = \"auto\", transform = $t })
+    hl.config({ input = { touchdevice = { output = \"$OUTPUT\", transform = $t }, tablet = { output = \"$OUTPUT\", transform = $t } } })
+  " >/dev/null
+  echo "$t" > "$STATE_DIR/rotation"
+  hyprctl eval "dropdown_refit($t)" >/dev/null
+  [[ $(status) == on ]] && omarchy bar position "${BAR_EDGE[$t]}" >/dev/null
+  # lisgd needs to know the orientation so edges and directions stay right.
+  if pgrep -x lisgd >/dev/null; then stop_gestures; start_gestures; fi
+}
+
+# --auto pops the keyboard up when a text field gets focus (apps that speak
+# the Wayland text-input protocol: GTK, Qt, Chromium); --hidden starts it out
+# of the way until then.
+keyboard_start() {
+  pgrep -x wvkbd-mobintl >/dev/null && return
+  command -v wvkbd-mobintl >/dev/null || return 1
+  # --auto learns about text fields through the Wayland input method, and only
+  # one program per seat can be that. fcitx5 (Omarchy's compose-key helper)
+  # takes it at login, so pause it while the hardware keyboard is off anyway;
+  # "off" starts it again.
+  systemctl --user stop omarchy-fcitx5.service 2>/dev/null
+  # Qt apps are pointed at fcitx (QT_IM_MODULE=fcitx); apps launched while in
+  # tablet mode use the Wayland text-input protocol instead, which wvkbd sees.
+  systemctl --user set-environment QT_IM_MODULE=wayland
+  setsid -f wvkbd-mobintl --hidden --auto -L 300 -H 300 --fn "JetBrainsMono Nerd Font 14" \
+    --bg 0b0c11 --fg 14151e --fg-sp 1c1f2e --press 7dcfff --press-sp 7dcfff \
+    --text c0caf5 --text-sp c0caf5 >/dev/null 2>&1
+}
+
+keyboard_toggle() {
+  if pgrep -x wvkbd-mobintl >/dev/null; then
+    # wvkbd toggles its visibility on SIGRTMIN.
+    pkill -RTMIN -x wvkbd-mobintl
+  else
+    keyboard_start || { osd "On-screen keyboard not installed"; exit 1; }
+    sleep 0.3
+    pkill -USR2 -x wvkbd-mobintl
+  fi
+}
+
+start_gestures() {
+  pgrep -x lisgd >/dev/null && return
+  command -v lisgd >/dev/null || return
+  # lisgd needs the input group (setup-tablet.sh adds it; takes effect after relogin).
+  id -nG | grep -qw input || return
+  local dev
+  dev=$(grep -l "Wacom HID 544C Finger" /sys/class/input/event*/device/name 2>/dev/null | head -1)
+  [[ -n $dev ]] || return
+  dev="/dev/input/$(basename "$(dirname "$(dirname "$dev")")")"
+  local gestures=() args=() g
+  # shellcheck source=/dev/null
+  source "$GESTURES"
+  for g in "${gestures[@]}"; do args+=(-g "$g"); done
+  # -w/-h: the panel's resolution, so edge detection lines up; -o: current rotation.
+  local rot
+  rot=$(cat "$STATE_DIR/rotation" 2>/dev/null || echo 0)
+  setsid -f lisgd -d "$dev" -w 2880 -h 1800 -o "$rot" "${args[@]}" >/dev/null 2>&1
+}
+
+stop_gestures() { pkill -x lisgd; }
+
+# Retract whatever scratchpad or dropdown is showing on each monitor.
+hide_scratchpads() {
+  local special
+  hyprctl monitors -j | jq -r '.[].specialWorkspace.name | select(. != "")' | while read -r special; do
+    hyprctl dispatch "hl.dsp.workspace.toggle_special(\"${special#special:}\")" >/dev/null
+  done
+}
+
+# Tap on bare wallpaper (daa.background): put away everything that isn't an
+# app -- on-screen keyboard, scratchpads, menus/launchers and bar popups.
+DISMISS_PLUGINS=(daa.menu daa.launcher daa.tablet-apps-grid omarchy.clipboard
+  omarchy.emojis omarchy.image-picker omarchy.reminders)
+
+dismiss() {
+  pkill -USR1 -x wvkbd-mobintl  # wvkbd hides on SIGUSR1
+  hide_scratchpads
+  local id
+  for id in "${DISMISS_PLUGINS[@]}"; do omarchy-shell -q shell hide "$id"; done
+  omarchy-shell -q daa.tablet-bar dismiss
+}
+
+# Tablet bar: switch to the separate touch bar (daa.tablet-bar), pinned to the
+# physical right edge. The laptop bar's id and position are saved and put
+# back on "off".
+TABLET_BAR="daa.tablet-bar"
+# Tablet mode's accent (coral pink). The tablet plugins and the shared menu,
+# launcher and OSD read [tablet] accent; [menu] selected-text covers the
+# highlighted menu row. Shell surfaces (menus, launcher, app grid,
+# notifications) are borderless in tablet mode; pop-ups already are
+# ([popups] border-width = 0 in shell.toml). Window borders keep the theme.
+TABLET_ACCENT="#ff6b81"
+
+bar_tablet() {
+  [[ -f $STATE_DIR/bar ]] || jq -c '{id: .bar.id, position: .bar.position}' "$SHELL_JSON" > "$STATE_DIR/bar"
+  omarchy bar use "$TABLET_BAR" >/dev/null
+  # Bar size follows [font] base-size, so 1.5x base-size makes the bar (and
+  # its icons and clock) 50% bigger. The shell reloads shell.toml on save.
+  if [[ ! -f $STATE_DIR/shell.toml ]]; then
+    cp "$SHELL_TOML" "$STATE_DIR/shell.toml" 2>/dev/null || : > "$STATE_DIR/shell.toml"
+    local base
+    base=$(sed -n 's/^base-size *= *\([0-9]\+\).*/\1/p' "$STATE_DIR/shell.toml" | head -1)
+    base=$(( ( ${base:-12} * 3 + 1 ) / 2 ))
+    if grep -q '^base-size' "$SHELL_TOML" 2>/dev/null; then
+      sed -i "s/^base-size *=.*/base-size = $base/" "$SHELL_TOML"
+    else
+      printf '[font]\nbase-size = %s\n' "$base" >> "$SHELL_TOML"
+    fi
+    printf '\n[tablet]\naccent = "%s"\n\n[menu]\nselected-text = "%s"\nborder-width = 0\n\n[notifications]\ncountdown = "%s"\nborder-width = 0\n' \
+      "$TABLET_ACCENT" "$TABLET_ACCENT" "$TABLET_ACCENT" >> "$SHELL_TOML"
+  fi
+  omarchy bar position "${BAR_EDGE[$(cat "$STATE_DIR/rotation" 2>/dev/null || echo 0)]}" >/dev/null
+}
+
+# Each mode keeps its own wallpaper: leaving a mode saves the current
+# background as that mode's, entering one applies its saved background (if
+# any). So whatever the background switcher sets in tablet mode sticks there.
+BACKGROUND_LINK="$HOME/.local/state/omarchy/current/background"
+
+background_swap() {
+  local from=$1 to=$2 current
+  current=$(readlink -f "$BACKGROUND_LINK" 2>/dev/null)
+  [[ -n $current ]] && echo "$current" > "$STATE_DIR/background-$from"
+  [[ -s $STATE_DIR/background-$to ]] || return
+  local next
+  next=$(cat "$STATE_DIR/background-$to")
+  [[ -f $next && $next != "$current" ]] && omarchy theme bg set "$next" >/dev/null 2>&1
+}
+
+bar_laptop() {
+  [[ -f $STATE_DIR/bar ]] || return
+  omarchy bar use "$(jq -r '.id // "omarchy.bar"' "$STATE_DIR/bar")" >/dev/null
+  omarchy bar position "$(jq -r '.position // "top"' "$STATE_DIR/bar")" >/dev/null
+  rm -f "$STATE_DIR/bar"
+  if [[ -f $STATE_DIR/shell.toml ]]; then
+    cp "$STATE_DIR/shell.toml" "$SHELL_TOML"
+    rm -f "$STATE_DIR/shell.toml"
+  fi
+}
+
+# The sensor's latest orientation is kept in $STATE_DIR/sensor even while
+# auto-rotate is locked ($STATE_DIR/rotate-lock exists), so unlocking can snap
+# straight to the way the screen is being held.
+autorotate() {
+  command -v monitor-sensor >/dev/null || exit 0
+  local t
+  stdbuf -oL monitor-sensor --accel 2>/dev/null | while read -r line; do
+    case "$line" in
+      *orientation\ changed:\ normal*|*orientation:\ normal*)       t=0 ;;
+      *orientation\ changed:\ left-up*|*orientation:\ left-up*)     t=1 ;;
+      *orientation\ changed:\ bottom-up*|*orientation:\ bottom-up*) t=2 ;;
+      *orientation\ changed:\ right-up*|*orientation:\ right-up*)   t=3 ;;
+      *) continue ;;
+    esac
+    echo "$t" > "$STATE_DIR/sensor"
+    [[ $(status) == on && ! -e $STATE_DIR/rotate-lock ]] && rotate_to "$t"
+  done
+}
+
+rotate_lock_toggle() {
+  if [[ -e $STATE_DIR/rotate-lock ]]; then
+    rm -f "$STATE_DIR/rotate-lock"
+    [[ -s $STATE_DIR/sensor ]] && rotate_to "$(cat "$STATE_DIR/sensor")"
+    osd "󰑵  Auto-rotate on"
+  else
+    touch "$STATE_DIR/rotate-lock"
+    osd "󰑸  Rotation locked"
+  fi
+}
+
+# Rows for the tablet bar's workspace menu (label TAB value TAB current):
+# "Hide scratchpad" while one is showing, the windows on the current
+# workspace (value "win:ADDRESS", so the menu gives them a close button),
+# then "N · apps" per workspace, then a row for the first free workspace
+# unless the current one is empty.
+list_workspaces() {
+  local current
+  current=$(hyprctl activeworkspace -j | jq -r .id)
+  hyprctl monitors -j | jq -e 'any(.[]; .specialWorkspace.name != "")' >/dev/null \
+    && printf 'Hide scratchpad\thide\t%s\n' "$current"
+  hyprctl clients -j | jq -r --argjson ws "$(hyprctl workspaces -j)" --argjson cur "$current" '
+    [ $ws[] | select(.id > 0) | .id ] as $ids
+    | (group_by(.workspace.id) | map({key: (.[0].workspace.id | tostring), value: (map(.class | split(".") | last) | unique | join(", "))}) | from_entries) as $apps
+    | (map(select(.workspace.id == $cur)) | sort_by(.focusHistoryID)[]
+        | "\(.class | split(".") | last)\twin:\(.address)"),
+      ($ids | sort[] | "\(.) · \($apps[tostring] // "empty")\t\(.)"),
+      (if $apps[$cur | tostring] then [range(1; 11)] - $ids | first // empty | "New workspace (\(.))\tnew" else empty end)
+  ' | sed "s/\$/\t$current/"
+}
+
+window_cmd() {
+  case $1 in
+    focus) hyprctl dispatch "hl.dsp.focus({ window = \"address:$2\" })" >/dev/null ;;
+    close) hyprctl dispatch "hl.dsp.window.close({ window = \"address:$2\" })" >/dev/null ;;
+  esac
+}
+
+go_workspace() {
+  local id=$1
+  if [[ $id == new ]]; then
+    if [[ $(hyprctl activeworkspace -j | jq -r .windows) == 0 ]]; then
+      osd "Current workspace is empty"
+      return 1
+    fi
+    id=$(hyprctl workspaces -j | jq '[.[].id] as $ids | [range(1; 11)] - $ids | first // empty')
+    [[ -n $id ]] || { osd "No free workspace"; return 1; }
+  fi
+  hyprctl dispatch "hl.dsp.focus({ workspace = \"$id\" })" >/dev/null
+}
+
+on() {
+  [[ $(status) == on ]] && return
+  echo on > "$STATE"
+  hide_scratchpads
+  device_enabled "$KEYBOARD" false
+  device_enabled "$TOUCHPAD" false
+  device_enabled "$TOUCHPAD_MOUSE" false
+  bar_tablet
+  background_swap laptop tablet
+  start_gestures
+  keyboard_start
+  if [[ -e /sys/bus/iio/devices/iio:device0 ]] && command -v monitor-sensor >/dev/null; then
+    pgrep -f "tablet-mode autorotate" >/dev/null || setsid -f "$0" autorotate >/dev/null 2>&1
+  fi
+  osd "󰓶  Tablet mode"
+}
+
+off() {
+  [[ $(status) == off ]] && [[ $1 != force ]] && return
+  echo off > "$STATE"
+  device_enabled "$KEYBOARD" true
+  device_enabled "$TOUCHPAD" true
+  device_enabled "$TOUCHPAD_MOUSE" true
+  stop_gestures
+  pkill -f "tablet-mode autorotate"
+  pkill -x monitor-sensor
+  pkill -x wvkbd-mobintl
+  systemctl --user set-environment QT_IM_MODULE=fcitx
+  systemctl --user start omarchy-fcitx5.service 2>/dev/null
+  rm -f "$STATE_DIR/rotate-lock"
+  rotate_to 0
+  bar_laptop
+  background_swap tablet laptop
+  osd "󰌌  Laptop mode"
+}
+
+case "$1" in
+  on) on ;;
+  off) off "$2" ;;
+  toggle) [[ $(status) == on ]] && off || on ;;
+  status) status ;;
+  keyboard) keyboard_toggle ;;
+  rotate)
+    if [[ -n $2 ]]; then rotate_to "$2"
+    else rotate_to $(( ( $(cat "$STATE_DIR/rotation" 2>/dev/null || echo 0) + 1 ) % 4 ))
+    fi ;;
+  orient) touch "$STATE_DIR/rotate-lock"; rotate_to "$2" ;;
+  autorotate) autorotate ;;
+  rotate-lock) rotate_lock_toggle ;;
+  workspaces) list_workspaces ;;
+  workspace) go_workspace "$2" ;;
+  window) window_cmd "$2" "$3" ;;
+  hide-scratchpads) hide_scratchpads ;;
+  dismiss) dismiss ;;
+  *) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+esac

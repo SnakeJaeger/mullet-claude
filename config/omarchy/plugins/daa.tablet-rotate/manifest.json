@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "daa.tablet-rotate",
+  "name": "Tablet rotate button",
+  "version": "1.0.0",
+  "author": "daa",
+  "description": "Tap toggles auto-rotate, hold picks an orientation (tablet bar)",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Tablet rotate button",
+    "description": "Tap toggles auto-rotate, hold picks an orientation (tablet bar)",
+    "category": "System",
+    "allowMultiple": false
+  }
+}

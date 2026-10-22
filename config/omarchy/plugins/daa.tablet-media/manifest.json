@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "daa.tablet-media",
+  "name": "Tablet play/pause",
+  "version": "1.0.0",
+  "author": "daa",
+  "description": "Play/pause button while a player has media (tablet bar)",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Tablet play/pause",
+    "description": "Play/pause button while a player has media (tablet bar)",
+    "category": "Media",
+    "allowMultiple": false
+  }
+}

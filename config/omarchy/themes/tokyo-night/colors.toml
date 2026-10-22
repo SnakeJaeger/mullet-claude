@@ -1,0 +1,36 @@
+# Tokyo Night with backgrounds pulled closer to black (overlay on the stock theme).
+# Stock values: selection #292e42, background #1a1b26, dark #13141c,
+# darker #0e0e14, lighter #24283b.
+
+mode = "dark"
+
+# accent: Tokyo Night cyan instead of stock blue #7aa2f7.
+accent = "#7dcfff"
+selection = "#1c1f2e"
+muted = "#414868"
+
+background = "#0b0c11"
+dark_background = "#08080c"
+darker_background = "#050508"
+lighter_background = "#14151e"
+
+foreground = "#a9b1d6"
+dark_foreground = "#565f89"
+light_foreground = "#b4bee6"
+bright_foreground = "#c0caf5"
+
+red = "#f7768e"
+yellow = "#e0af68"
+orange = "#eb927b"
+green = "#9ece6a"
+cyan = "#449dab"
+blue = "#7aa2f7"
+magenta = "#ad8ee6"
+brown = "#75493d"
+
+bright_red = "#ff7a93"
+bright_yellow = "#ff9e64"
+bright_green = "#b9f27c"
+bright_cyan = "#0db9d7"
+bright_blue = "#7da6ff"
+bright_magenta = "#bb9af7"

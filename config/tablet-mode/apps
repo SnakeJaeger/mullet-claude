@@ -1,0 +1,12 @@
+# Apps in the tablet bar's app grid (󰀻), in order: one desktop file id per
+# line (the file name in /usr/share/applications or
+# ~/.local/share/applications, with or without ".desktop").
+com.github.flxzt.rnote
+com.github.xournalpp.xournalpp
+org.kde.krita
+com.github.PintaProject.Pinta
+org.gnome.Papers
+com.github.johnfactotum.Foliate
+info.febvre.Komikku
+Kindle
+firefox

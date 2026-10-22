@@ -1,0 +1,646 @@
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import qs.Commons
+import qs.Ui
+
+BarWidget {
+  id: root
+  moduleName: "omarchy.indicators"
+
+  readonly property var defaultIndicatorEntries: [ "Dictation", "ScreenRecording", "Reminder", "NightLight", "Dnd", "StayAwake" ]
+  readonly property var indicatorEntries: indicatorEntriesFromSettings(settings)
+  property var activeIndicatorIds: []
+  property var indicatorActiveStates: ({})
+  property bool indicatorAreaHovered: false
+  property bool indicatorItemHovered: false
+  readonly property bool alwaysShowIndicators: setting("alwaysShow", false) === true
+  readonly property bool revealInactiveIndicators: alwaysShowIndicators || indicatorAreaHovered || indicatorItemHovered || (bar && bar.centerSectionRevealHeld === true && bar.centerHoverRevealSuppressed !== true)
+
+  signal refreshRequested()
+
+  // Drop-down flyout (horizontal bars): instead of sliding the switched-off
+  // indicators out beside the clock, hovering the clock island drops a panel
+  // below it with every indicator as a bigger icon over its name. The tiles
+  // drive the (hidden) "inactive" block's instances, which already exist for
+  // every indicator, so nothing is loaded or polled twice.
+  readonly property var flyoutLabels: ({
+    Dictation: "Dictation", ScreenRecording: "Recording", Reminder: "Reminder",
+    NightLight: "Night light", Dnd: "Do not disturb", StayAwake: "Stay awake"
+  })
+  property var flyoutItems: ({})
+  readonly property var flyoutTiles: {
+    var tiles = []
+    for (var i = 0; i < indicatorEntries.length; i++) {
+      var id = entryId(indicatorEntries[i])
+      var item = flyoutItems[id]
+      if (item) tiles.push({ id: id, item: item })
+    }
+    return tiles
+  }
+  readonly property bool flyoutOpen: !vertical && revealInactiveIndicators && flyoutTiles.length > 0
+
+  function registerFlyoutItem(id, item) {
+    if (!id || flyoutItems[id] === item) return
+    var next = ({})
+    for (var k in flyoutItems) next[k] = flyoutItems[k]
+    next[id] = item
+    flyoutItems = next
+  }
+
+  ListModel { id: activeIndicatorModel }
+
+  function entryId(entry) {
+    if (typeof entry === "string") return entry
+    if (Util.isPlainObject(entry)) {
+      var id = entry["id"]
+      if (id !== undefined && id !== null && String(id) !== "") return String(id)
+    }
+    return ""
+  }
+
+  function entrySettings(entry) {
+    if (!Util.isPlainObject(entry)) return {}
+    var copy = {}
+    for (var key in entry) {
+      if (key === "id") continue
+      copy[key] = entry[key]
+    }
+    return copy
+  }
+
+  function indicatorEntriesFromSettings(settings) {
+    var source = defaultIndicatorEntries
+    if (settings.items && typeof settings.items.length === "number" && settings.items.length > 0) source = settings.items
+    else if (settings.indicators && typeof settings.indicators.length === "number" && settings.indicators.length > 0) source = settings.indicators
+
+    var result = []
+    for (var i = 0; i < source.length; i++) {
+      var item = source[i]
+      if (typeof item !== "string" && item !== null && typeof item === "object") {
+        try {
+          item = JSON.parse(JSON.stringify(item))
+        } catch (error) {
+        }
+      }
+      var id = entryId(item)
+      if (id !== "") result.push(item)
+    }
+    return result
+  }
+
+  function setIndicatorAreaHovered(hovered) {
+    indicatorAreaHovered = hovered
+    if (hovered) indicatorHideTimer.stop()
+    else indicatorHideTimer.restart()
+  }
+
+  function setIndicatorItemHovered(hovered) {
+    if (hovered) {
+      indicatorItemHovered = true
+      indicatorHideTimer.stop()
+    } else {
+      indicatorHideTimer.restart()
+    }
+  }
+
+  function hasIndicatorId(id) {
+    for (var i = 0; i < indicatorEntries.length; i++) {
+      if (entryId(indicatorEntries[i]) === id) return true
+    }
+    return false
+  }
+
+  function entryForId(id) {
+    for (var i = 0; i < indicatorEntries.length; i++) {
+      var entry = indicatorEntries[i]
+      if (entryId(entry) === id) return entry
+    }
+
+    return { id: id }
+  }
+
+  function activeModelIndex(id) {
+    for (var i = 0; i < activeIndicatorModel.count; i++) {
+      if (activeIndicatorModel.get(i).activeId === id) return i
+    }
+    return -1
+  }
+
+  function copyActiveStates() {
+    var states = {}
+    for (var id in indicatorActiveStates) {
+      if (indicatorActiveStates[id] === true) states[id] = true
+    }
+    return states
+  }
+
+  function orderedActiveIds(states, preferredOrder) {
+    var ids = []
+
+    for (var i = 0; i < preferredOrder.length; i++) {
+      var id = preferredOrder[i]
+      if (ids.indexOf(id) === -1 && hasIndicatorId(id) && states[id] === true) ids.push(id)
+    }
+
+    return ids
+  }
+
+  function syncActiveIndicatorModel() {
+    for (var i = activeIndicatorModel.count - 1; i >= 0; i--) {
+      if (activeIndicatorIds.indexOf(activeIndicatorModel.get(i).activeId) === -1)
+        activeIndicatorModel.remove(i)
+    }
+
+    for (var j = 0; j < activeIndicatorIds.length; j++) {
+      var id = activeIndicatorIds[j]
+      var index = activeModelIndex(id)
+      if (index === -1) activeIndicatorModel.insert(j, { activeId: id })
+      else if (index !== j) activeIndicatorModel.move(index, j, 1)
+    }
+  }
+
+  function setIndicatorActive(entry, active) {
+    var id = entryId(entry)
+    if (id === "") return
+
+    var states = copyActiveStates()
+    if (active) states[id] = true
+    else delete states[id]
+
+    indicatorActiveStates = states
+
+    var ids = orderedActiveIds(states, activeIndicatorIds)
+    // The active block sits closest to the clock, so newcomers go on the far
+    // side of it. Appending would shove everything already showing sideways.
+    if (active && ids.indexOf(id) === -1 && hasIndicatorId(id)) ids.unshift(id)
+    activeIndicatorIds = ids
+    syncActiveIndicatorModel()
+  }
+
+  function syncActiveIndicatorOrder() {
+    activeIndicatorIds = orderedActiveIds(indicatorActiveStates, activeIndicatorIds)
+    syncActiveIndicatorModel()
+  }
+
+  function refresh() { root.refreshRequested() }
+
+  onIndicatorEntriesChanged: syncActiveIndicatorOrder()
+
+  // Only the tree for the current orientation exists (see orientationLoader
+  // below); its wrapper keeps the stock sizing expressions, so the root's
+  // implicit size still follows the blocks synchronously rather than waiting
+  // on a positioner's polish.
+  implicitWidth: orientationLoader.item ? orientationLoader.item.implicitWidth : 0
+  implicitHeight: orientationLoader.item ? orientationLoader.item.implicitHeight : 0
+
+  IpcHandler {
+    target: "omarchy.indicators"
+
+    function refresh(): void {
+      root.broadcast("refresh")
+    }
+  }
+
+  Timer {
+    id: indicatorHideTimer
+    interval: 120
+    onTriggered: {
+      if (!root.indicatorAreaHovered)
+        root.indicatorItemHovered = false
+    }
+  }
+
+  Component.onCompleted: root.refreshRequested()
+
+  // Instantiating both orientation trees and toggling `visible` doubled every
+  // indicator per bar (and every process an indicator spawns, once per
+  // monitor). Load only the tree that matches the bar orientation instead.
+  Loader {
+    id: orientationLoader
+    sourceComponent: root.vertical ? verticalIndicatorsTree : horizontalIndicatorsTree
+  }
+
+  Component {
+    id: horizontalIndicatorsTree
+
+    Item {
+      implicitWidth: activeHorizontalBlock.implicitWidth + inactiveHorizontalArea.implicitWidth
+      implicitHeight: Math.max(activeHorizontalBlock.implicitHeight, inactiveHorizontalArea.implicitHeight)
+      width: implicitWidth
+      height: implicitHeight
+
+      Row {
+        id: horizontalIndicators
+
+        spacing: 0
+
+        HoverHandler {
+          onHoveredChanged: root.setIndicatorAreaHovered(hovered)
+        }
+
+        Item {
+          id: inactiveHorizontalArea
+
+          implicitWidth: 0  // shown in the drop-down flyout instead
+          implicitHeight: Math.max(inactiveHorizontalBlock.implicitHeight, root.barSize)
+          width: implicitWidth
+          height: implicitHeight
+          clip: true
+
+          IndicatorBlock {
+            id: inactiveHorizontalBlock
+            anchors.verticalCenter: parent.verticalCenter
+            indicatorsModule: root
+            indicatorEntries: root.indicatorEntries
+            indicatorBlock: "inactive"
+            horizontal: true
+            reportActiveState: !root.vertical
+          }
+
+          HoverHandler {
+            onHoveredChanged: root.setIndicatorAreaHovered(hovered)
+          }
+        }
+
+        ActiveIndicatorBlock {
+          id: activeHorizontalBlock
+          indicatorsModule: root
+          indicatorModel: activeIndicatorModel
+          horizontal: true
+          reportActiveState: !root.vertical
+        }
+      }
+    }
+  }
+
+  Component {
+    id: verticalIndicatorsTree
+
+    Item {
+      implicitWidth: Math.max(activeVerticalBlock.implicitWidth, inactiveVerticalArea.implicitWidth)
+      implicitHeight: activeVerticalBlock.implicitHeight + inactiveVerticalArea.implicitHeight
+      width: implicitWidth
+      height: implicitHeight
+
+      Column {
+        id: verticalIndicators
+
+        spacing: 0
+
+        HoverHandler {
+          onHoveredChanged: root.setIndicatorAreaHovered(hovered)
+        }
+
+        Item {
+          id: inactiveVerticalArea
+
+          implicitWidth: Math.max(inactiveVerticalBlock.implicitWidth, root.barSize)
+          implicitHeight: root.revealInactiveIndicators ? inactiveVerticalBlock.implicitHeight : 0
+          width: implicitWidth
+          height: implicitHeight
+          clip: true
+
+          IndicatorBlock {
+            id: inactiveVerticalBlock
+            anchors.horizontalCenter: parent.horizontalCenter
+            indicatorsModule: root
+            indicatorEntries: root.indicatorEntries
+            indicatorBlock: "inactive"
+            horizontal: false
+            reportActiveState: root.vertical
+          }
+
+          HoverHandler {
+            onHoveredChanged: root.setIndicatorAreaHovered(hovered)
+          }
+        }
+
+        ActiveIndicatorBlock {
+          id: activeVerticalBlock
+          indicatorsModule: root
+          indicatorModel: activeIndicatorModel
+          horizontal: false
+          reportActiveState: root.vertical
+        }
+      }
+    }
+  }
+
+  HoverHandler {
+    onHoveredChanged: root.setIndicatorAreaHovered(hovered)
+  }
+
+  PopupWindow {
+    id: flyoutWindow
+
+    readonly property var barWindow: root.QsWindow.window
+    readonly property bool below: !root.bar || root.bar.position !== "bottom"
+    readonly property int gap: Style.space(6)
+
+    visible: !!barWindow && (root.flyoutOpen || flyoutPanel.opacity > 0)
+    color: "transparent"
+    implicitWidth: flyoutPanel.implicitWidth
+    implicitHeight: flyoutPanel.implicitHeight
+
+    anchor {
+      id: flyoutAnchor
+      window: flyoutWindow.barWindow
+      adjustment: PopupAdjustment.Slide
+      edges: flyoutWindow.below ? Edges.Bottom : Edges.Top
+      gravity: flyoutWindow.below ? Edges.Bottom : Edges.Top
+      rect.width: 1
+      rect.height: 1
+
+      // Centred under the clock island (the bar's centre), just clear of the bar.
+      onAnchoring: {
+        var win = flyoutWindow.barWindow
+        if (!win) return
+        var point = win.contentItem.mapFromItem(root, 0, 0)
+        flyoutAnchor.rect.x = Math.round(win.contentItem.width / 2)
+        flyoutAnchor.rect.y = flyoutWindow.below
+          ? Math.round(point.y + root.height + flyoutWindow.gap)
+          : Math.round(point.y - flyoutWindow.gap)
+      }
+    }
+
+    Rectangle {
+      id: flyoutPanel
+
+      readonly property int pad: Style.space(8)
+
+      implicitWidth: tileRow.implicitWidth + pad * 2
+      implicitHeight: tileRow.implicitHeight + pad * 2
+      width: implicitWidth
+      height: implicitHeight
+      radius: Style.space(14)
+      color: Qt.rgba(0, 0, 0, 0.6)
+      opacity: root.flyoutOpen ? 1 : 0
+      transformOrigin: flyoutWindow.below ? Item.Top : Item.Bottom
+      scale: root.flyoutOpen ? 1 : 0.92
+
+      Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+      Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+
+      HoverHandler {
+        onHoveredChanged: root.setIndicatorItemHovered(hovered)
+      }
+
+      Row {
+        id: tileRow
+        anchors.centerIn: parent
+        spacing: Style.space(4)
+
+        Repeater {
+          model: root.flyoutTiles
+
+          Rectangle {
+            id: tile
+            required property var modelData
+            readonly property var indicator: modelData.item
+            readonly property bool on: indicator.active === true
+            readonly property bool hovered: tileHover.hovered
+            readonly property color ink: hovered ? Color.accent
+              : (root.bar ? root.bar.barForeground : Color.foreground)
+
+            width: Style.space(76)
+            height: tileColumn.implicitHeight + Style.space(14)
+            radius: Style.space(10)
+            // Switched-on toggles sit on an accent-tinted tile.
+            color: on ? Util.alpha(Color.accent, hovered ? 0.3 : 0.22)
+              : (hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
+
+            Behavior on color { ColorAnimation { duration: 120 } }
+
+            Column {
+              id: tileColumn
+              anchors.centerIn: parent
+              spacing: Style.space(4)
+
+              Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: tile.indicator.text
+                color: tile.ink
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Math.round(Style.bar.iconFont * 1.6)
+                Behavior on color { ColorAnimation { duration: 120 } }
+              }
+
+              Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: tile.width - Style.space(8)
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                text: root.flyoutLabels[tile.modelData.id] || tile.modelData.id
+                color: tile.ink
+                opacity: 0.9
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.caption
+                Behavior on color { ColorAnimation { duration: 120 } }
+              }
+            }
+
+            HoverHandler { id: tileHover; cursorShape: Qt.PointingHandCursor }
+            TapHandler { onTapped: tile.indicator.triggerPress(Qt.LeftButton) }
+          }
+        }
+      }
+    }
+  }
+
+  component ActiveIndicatorBlock: Item {
+    id: activeIndicatorBlockRoot
+
+    property var indicatorModel: null
+    property var indicatorsModule: null
+    property bool horizontal: true
+    property bool reportActiveState: false
+
+    implicitWidth: blockLoader.item ? blockLoader.item.implicitWidth : 0
+    implicitHeight: blockLoader.item ? blockLoader.item.implicitHeight : 0
+    width: implicitWidth
+    height: implicitHeight
+
+    Loader {
+      id: blockLoader
+
+      anchors.centerIn: parent
+      sourceComponent: activeIndicatorBlockRoot.horizontal ? horizontalActiveIndicatorBlock : verticalActiveIndicatorBlock
+    }
+
+    Component {
+      id: horizontalActiveIndicatorBlock
+
+      Row {
+        spacing: 0
+
+        Repeater {
+          model: activeIndicatorBlockRoot.indicatorModel
+
+          IndicatorLoader {
+            required property string activeId
+            indicatorsModule: activeIndicatorBlockRoot.indicatorsModule
+            entry: activeIndicatorBlockRoot.indicatorsModule.entryForId(activeId)
+            indicatorBlock: "active"
+            reportActiveState: activeIndicatorBlockRoot.reportActiveState
+          }
+        }
+      }
+    }
+
+    Component {
+      id: verticalActiveIndicatorBlock
+
+      Column {
+        spacing: 0
+
+        Repeater {
+          model: activeIndicatorBlockRoot.indicatorModel
+
+          IndicatorLoader {
+            required property string activeId
+            indicatorsModule: activeIndicatorBlockRoot.indicatorsModule
+            entry: activeIndicatorBlockRoot.indicatorsModule.entryForId(activeId)
+            indicatorBlock: "active"
+            reportActiveState: activeIndicatorBlockRoot.reportActiveState
+          }
+        }
+      }
+    }
+  }
+
+  component IndicatorBlock: Item {
+    id: indicatorBlockRoot
+
+    property var indicatorEntries: []
+    property var indicatorsModule: null
+    property string indicatorBlock: "active"
+    property bool horizontal: true
+    property bool reportActiveState: false
+
+    implicitWidth: blockLoader.item ? blockLoader.item.implicitWidth : 0
+    implicitHeight: blockLoader.item ? blockLoader.item.implicitHeight : 0
+    width: implicitWidth
+    height: implicitHeight
+
+    Loader {
+      id: blockLoader
+
+      anchors.centerIn: parent
+      sourceComponent: indicatorBlockRoot.horizontal ? horizontalIndicatorBlock : verticalIndicatorBlock
+    }
+
+    Component {
+      id: horizontalIndicatorBlock
+
+      Row {
+        spacing: 0
+
+        Repeater {
+          model: indicatorBlockRoot.indicatorEntries
+
+          IndicatorLoader {
+            required property var modelData
+            indicatorsModule: indicatorBlockRoot.indicatorsModule
+            entry: modelData
+            indicatorBlock: indicatorBlockRoot.indicatorBlock
+            reportActiveState: indicatorBlockRoot.reportActiveState
+          }
+        }
+      }
+    }
+
+    Component {
+      id: verticalIndicatorBlock
+
+      Column {
+        spacing: 0
+
+        Repeater {
+          model: indicatorBlockRoot.indicatorEntries
+
+          IndicatorLoader {
+            required property var modelData
+            indicatorsModule: indicatorBlockRoot.indicatorsModule
+            entry: modelData
+            indicatorBlock: indicatorBlockRoot.indicatorBlock
+            reportActiveState: indicatorBlockRoot.reportActiveState
+          }
+        }
+      }
+    }
+  }
+
+  component IndicatorLoader: Item {
+    id: indicatorSlot
+
+    required property var entry
+    property var indicatorsModule: null
+    required property string indicatorBlock
+    property bool reportActiveState: false
+    property bool activeStateObserved: false
+    readonly property string indicatorId: root.entryId(entry)
+    readonly property var indicatorSettings: root.entrySettings(entry)
+    readonly property var barRef: root.bar
+
+    implicitWidth: indicatorSource.item && indicatorSource.item.visible ? indicatorSource.item.implicitWidth : 0
+    implicitHeight: indicatorSource.item && indicatorSource.item.visible ? indicatorSource.item.implicitHeight : 0
+    width: implicitWidth
+    height: implicitHeight
+    onEntryChanged: {
+      activeStateObserved = false
+      injectProps()
+      syncActiveState()
+    }
+    onIndicatorBlockChanged: injectProps()
+    onIndicatorSettingsChanged: injectProps()
+    onIndicatorsModuleChanged: {
+      injectProps()
+      syncActiveState()
+    }
+    onReportActiveStateChanged: syncActiveState()
+    onBarRefChanged: injectProps()
+
+    Loader {
+      id: indicatorSource
+
+      anchors.fill: parent
+      source: indicatorSlot.indicatorId ? Qt.resolvedUrl("indicators/" + indicatorSlot.indicatorId + ".qml") : ""
+      onLoaded: {
+        indicatorSlot.injectProps()
+        indicatorSlot.syncActiveState()
+        if (indicatorSlot.indicatorBlock === "inactive") root.registerFlyoutItem(indicatorSlot.indicatorId, item)
+      }
+      onStatusChanged: if (status === Loader.Error) console.warn("Indicator loader error", indicatorSlot.indicatorId, source)
+    }
+
+    Connections {
+      target: indicatorSource.item
+      ignoreUnknownSignals: true
+      function onActiveChanged() { indicatorSlot.syncActiveState() }
+    }
+
+    function injectProps() {
+      var target = indicatorSource.item
+      if (!target) return
+      if ("bar" in target) target.bar = root.bar
+      if ("moduleName" in target) target.moduleName = indicatorId
+      if ("settings" in target) target.settings = indicatorSettings
+      if ("indicatorBlock" in target) target.indicatorBlock = indicatorBlock
+      if ("indicatorHost" in target) target.indicatorHost = root
+      if ("activeOverride" in target) target.activeOverride = indicatorBlock === "active" ? true : null
+    }
+
+    function syncActiveState() {
+      if (!reportActiveState || !indicatorsModule || !indicatorsModule.setIndicatorActive) return
+
+      var active = !!indicatorSource.item && indicatorSource.item.active === true
+      if (indicatorBlock === "active") {
+        if (active) activeStateObserved = true
+        else if (!activeStateObserved) return
+      }
+
+      indicatorsModule.setIndicatorActive(entry, active)
+    }
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "bar": {
+    "centerAnchor": "omarchy.clock",
+    "id": "daa.desktop-bar",
+    "layout": {
+      "app": [],
+      "center": [
+        {
+          "format": "dddd HH:mm",
+          "formatAlt": "d MMMM 'W'ww yyyy",
+          "id": "omarchy.clock",
+          "verticalFormat": "HH\n—\nmm"
+        },
+        {
+          "id": "omarchy.keyboard-layout"
+        },
+        {
+          "id": "omarchy.weather"
+        },
+        {
+          "id": "omarchy.system-update"
+        },
+        {
+          "id": "daa.desktop-indicators"
+        }
+      ],
+      "left": [
+        {
+          "id": "daa.desktop-arch-menu"
+        },
+        {
+          "id": "daa.desktop-workspaces"
+        }
+      ],
+      "right": [
+        {
+          "id": "omarchy.tray"
+        },
+        {
+          "id": "omarchy.agents"
+        },
+        {
+          "id": "omarchy.bluetooth"
+        },
+        {
+          "id": "omarchy.network"
+        },
+        {
+          "id": "omarchy.audio"
+        },
+        {
+          "id": "omarchy.monitor"
+        },
+        {
+          "id": "omarchy.power"
+        }
+      ]
+    },
+    "position": "top",
+    "transparent": false
+  },
+  "cloneSourceRestores": [
+    "daa.osd",
+    "daa.menu",
+    "daa.background",
+    "daa.clipboard"
+  ],
+  "disabledPlugins": [
+    "omarchy.osd",
+    "omarchy.menu",
+    "omarchy.background",
+    "omarchy.clipboard"
+  ],
+  "idle": {
+    "lock": 300,
+    "screensaver": 150
+  },
+  "plugins": [
+    {
+      "id": "daa.desktop-app-name"
+    },
+    {
+      "id": "daa.launcher"
+    },
+    {
+      "id": "daa.desktop-media"
+    },
+    {
+      "id": "daa.menu"
+    },
+    {
+      "id": "daa.osd"
+    },
+    {
+      "id": "daa.tablet-apps"
+    },
+    {
+      "id": "daa.tablet-apps-grid"
+    },
+    {
+      "id": "daa.tablet-keyboard"
+    },
+    {
+      "id": "daa.tablet-media"
+    },
+    {
+      "id": "daa.tablet-menu"
+    },
+    {
+      "id": "daa.tablet-quick"
+    },
+    {
+      "id": "daa.tablet-rotate"
+    },
+    {
+      "id": "daa.tablet-workspace"
+    },
+    {
+      "id": "daa.background"
+    },
+    {
+      "id": "daa.clipboard"
+    }
+  ],
+  "version": 1
+}

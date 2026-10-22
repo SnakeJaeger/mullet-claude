@@ -1,0 +1,242 @@
+-- Dropdown apps: one key summons an app from the top of the screen and the
+-- same key hides it again. Each app lives on its own special workspace; the
+-- first press launches it if it isn't running yet.
+
+-- Optional w/h are fractions of the monitor (default 0.7 x 0.6) and y is the
+-- top edge in px (default 50, just below the bar). The terminal tucks under the
+-- bar and is taller so the fastfetch greeting fits without scrolling.
+-- px = { w, h } sets an exact pixel size instead (centred horizontally unless
+-- x gives the left edge in px).
+-- right = px pins the window that far from the right edge instead of centring.
+-- slide = the special workspace animation style for just this dropdown, e.g.
+-- "slide" to come in from the right instead of down from the top.
+-- preload = true launches the app hidden at login so the first press is instant.
+local dropdowns = {
+  -- Geometry copied from where it was hand-placed (119x35 cells at font 10)
+  { key = "SUPER + T", name = "terminal", title = "Dropdown terminal", cmd = "kitty --class=dropdown.terminal -o font_size=10 -o env=DROPDOWN_TERMINAL=1", px = { 990, 667 }, y = -22, preload = true },
+  { key = "SUPER + C", name = "claude", title = "Dropdown Claude Code", cmd = "kitty --class=dropdown.claude claude", preload = true },
+  { key = "SUPER + I", name = "btop", title = "Dropdown btop", cmd = "kitty --class=dropdown.btop btop", preload = true },
+  -- Nautilus can't set its own class, so `match` claims the next window of
+  -- that class instead (see below).
+  { key = "SUPER + E", name = "files", title = "Dropdown files", cmd = "nautilus --new-window", match = "org.gnome.Nautilus", preload = true },
+  -- Whole-filesystem search (Catfish searches from / instead of home), with
+  -- its own GTK theme (omarchy/themed/catfish-gtk3.css.tpl).
+  { key = "SUPER + D", name = "search", title = "Dropdown file search", cmd = "env GTK_THEME=Omarchy-Catfish catfish --path=/", match = "catfish", px = { 1000, 700 }, preload = true },
+  -- Hangs off the upper right corner and slides in from the right.
+  { key = "SUPER + P", name = "bitwarden", title = "Dropdown Bitwarden", cmd = "bitwarden-desktop", match = "Bitwarden", px = { 723, 713 }, right = 10, slide = "slide", preload = true },
+}
+
+local function dims(dropdown)
+  local w, h = dropdown.w or 0.7, dropdown.h or 0.6
+  return w, h, (1 - w) / 2, dropdown.y or 50
+end
+
+-- Slide special workspaces down from the top instead of fading them in.
+-- Workspace rules can't override this for one special workspace, so each
+-- toggle sets the style first; the hide that follows (here or from
+-- scratchpads.lua) reuses it and slides back out the same way.
+local function slide_style(dropdown)
+  hl.animation({ leaf = "specialWorkspace", enabled = true, speed = 4, bezier = "easeOutQuint", style = dropdown and dropdown.slide or "slidevert" })
+end
+slide_style()
+
+local function toggle_special(dropdown)
+  slide_style(dropdown)
+  hl.dispatch(hl.dsp.workspace.toggle_special("dropdown-" .. dropdown.name))
+end
+
+-- Size and top-left position in layout px on a w x h (logical) monitor.
+local function place(dropdown, w, h)
+  local fw, fh, fx, fy = dims(dropdown)
+  local ww, wh = math.floor(w * fw), math.floor(h * fh)
+  if dropdown.px then
+    ww, wh = math.min(dropdown.px[1], math.floor(w * 0.96)), dropdown.px[2]
+  end
+  local x = (w - ww) // 2
+  if dropdown.right then x = w - ww - dropdown.right end
+  return ww, wh, x, fy
+end
+
+local function running(class)
+  for _, window in ipairs(hl.get_windows()) do
+    if window.class == class then return true end
+  end
+  return false
+end
+
+-- Claimed dropdown windows by address, so scratchpads.lua can leave them be.
+dropdown_windows = {}
+
+local claimed = {} -- dropdown name -> window address
+local pending = {} -- class -> dropdown waiting for its window
+local silent = {} -- class -> true when its pending window is a preload
+
+local function alive(address)
+  for _, window in ipairs(hl.get_windows()) do
+    if window.address == address then return true end
+  end
+  return false
+end
+
+-- Give a claimed window what the o.window rule above gives the others, then
+-- park it on its special workspace and show it.
+hl.on("window.open", function(window)
+  local dropdown = window and pending[window.class]
+  if not dropdown then return end
+  pending[window.class] = nil
+  claimed[dropdown.name] = window.address
+  dropdown_windows[window.address] = true
+
+  -- Monitor width/height are in pixels; layout coords are scaled.
+  local monitor = window.monitor or hl.get_active_monitor()
+  local w, h = monitor.width / monitor.scale, monitor.height / monitor.scale
+  local ww, wh, x, y = place(dropdown, w, h)
+  hl.dispatch(hl.dsp.window.float({ window = window, action = "enable" }))
+  hl.dispatch(hl.dsp.window.resize({ window = window, x = ww, y = wh }))
+  hl.dispatch(hl.dsp.window.move({ window = window, x = monitor.x + x, y = monitor.y + y }))
+  hl.dispatch(hl.dsp.window.move({ window = window, workspace = "special:dropdown-" .. dropdown.name, follow = false }))
+  if silent[window.class] then
+    silent[window.class] = nil
+    return
+  end
+  toggle_special(dropdown)
+end)
+
+-- Floating windows keep their size when the screen rotates, so tablet-mode
+-- calls this after each rotation (transform 0-3) to fit dropdowns to the new
+-- shape. Pixel-sized ones shrink to fit a portrait screen.
+function dropdown_refit(transform)
+  local monitor = hl.get_active_monitor()
+  local long = math.max(monitor.width, monitor.height) / monitor.scale
+  local short = math.min(monitor.width, monitor.height) / monitor.scale
+  local w, h = long, short
+  if transform % 2 == 1 then w, h = short, long end
+  for _, dropdown in ipairs(dropdowns) do
+    local class = dropdown.match or ("dropdown." .. dropdown.name)
+    for _, window in ipairs(hl.get_windows()) do
+      if window.class == class and (not dropdown.match or window.address == claimed[dropdown.name]
+          or (window.workspace and window.workspace.name == "special:dropdown-" .. dropdown.name)) then
+        local ww, wh, x, y = place(dropdown, w, h)
+        hl.dispatch(hl.dsp.window.resize({ window = window, x = ww, y = wh }))
+        hl.dispatch(hl.dsp.window.move({ window = window, x = monitor.x + x, y = monitor.y + y }))
+      end
+    end
+  end
+end
+
+-- Toggle functions by dropdown name. Exposed as dropdown_toggle(name) and
+-- dropdown_show(name) so menus and the tablet app grid can summon a dropdown
+-- (hyprctl eval 'dropdown_show("files")'); show never hides one already up.
+local toggles = {}
+
+function dropdown_toggle(name)
+  if toggles[name] then toggles[name]() end
+end
+
+function dropdown_show(name)
+  local monitor = hl.get_active_monitor()
+  local shown = monitor and monitor.active_special_workspace
+  if shown and shown.name == "special:dropdown-" .. name then return end
+  dropdown_toggle(name)
+end
+
+-- Restart a match-based dropdown with extra (already shell-quoted) arguments
+-- and show it. ~/.local/bin/file-search uses this so the Omarchy menu can open
+-- Catfish already searching:
+--   hyprctl eval 'dropdown_relaunch("search", [==[--start 'notes']==])'
+function dropdown_relaunch(name, args)
+  for _, dropdown in ipairs(dropdowns) do
+    if dropdown.name == name and dropdown.match then
+      local workspace = "special:dropdown-" .. name
+      local monitor = hl.get_active_monitor()
+      local shown = monitor and monitor.active_special_workspace
+      if shown and shown.name == workspace then toggle_special(dropdown) end
+      for _, window in ipairs(hl.get_windows()) do
+        if window.class == dropdown.match and (window.address == claimed[name]
+            or (window.workspace and window.workspace.name == workspace)) then
+          dropdown_windows[window.address] = nil
+          hl.dispatch(hl.dsp.window.close({ window = window }))
+        end
+      end
+      claimed[name] = nil
+      pending[dropdown.match] = dropdown
+      silent[dropdown.match] = nil
+      hl.dispatch(hl.dsp.exec_cmd("uwsm-app -- " .. dropdown.cmd .. " " .. (args or "")))
+      return
+    end
+  end
+end
+
+for _, dropdown in ipairs(dropdowns) do
+  if dropdown.match then
+    toggles[dropdown.name] = function()
+      local address = claimed[dropdown.name]
+      -- The claim lives only in this Lua state, which a config reload wipes.
+      -- Re-adopt a window still parked on the dropdown's workspace rather
+      -- than launching a second one.
+      if not (address and alive(address)) then
+        for _, window in ipairs(hl.get_windows()) do
+          if window.class == dropdown.match and window.workspace
+            and window.workspace.name == "special:dropdown-" .. dropdown.name then
+            address = window.address
+            claimed[dropdown.name] = address
+            dropdown_windows[address] = true
+            break
+          end
+        end
+      end
+      if address and alive(address) then
+        toggle_special(dropdown)
+      else
+        if address then dropdown_windows[address] = nil end
+        claimed[dropdown.name] = nil
+        pending[dropdown.match] = dropdown
+        silent[dropdown.match] = nil
+        hl.dispatch(hl.dsp.exec_cmd("uwsm-app -- " .. dropdown.cmd))
+      end
+    end
+    o.bind(dropdown.key, dropdown.title, toggles[dropdown.name])
+    -- Claim the first window of the class at login, but leave it hidden.
+    if dropdown.preload then
+      hl.on("hyprland.start", function()
+        pending[dropdown.match] = dropdown
+        silent[dropdown.match] = true
+        hl.exec_cmd("uwsm-app -- " .. dropdown.cmd)
+      end)
+    end
+    goto continue
+  end
+
+  local class = "dropdown." .. dropdown.name
+  local workspace = "special:dropdown-" .. dropdown.name
+
+  -- Floating, centred horizontally, hanging just below the bar.
+  local fw, fh, fx, fy = dims(dropdown)
+  -- Silent so preloaded windows open hidden; the bind toggles it into view.
+  local size = { "(monitor_w*" .. fw .. ")", "(monitor_h*" .. fh .. ")" }
+  local move = { "(monitor_w*" .. fx .. ")", tostring(fy) }
+  if dropdown.px then
+    size = { tostring(dropdown.px[1]), tostring(dropdown.px[2]) }
+    local x = dropdown.x and tostring(dropdown.x) or "(monitor_w*0.5-" .. dropdown.px[1] // 2 .. ")"
+    if dropdown.right then x = "(monitor_w-" .. dropdown.px[1] + dropdown.right .. ")" end
+    move = { x, tostring(fy) }
+  end
+  o.window("^" .. class:gsub("%.", "\\.") .. "$", {
+    workspace = workspace .. " silent",
+    float = true,
+    size = size,
+    move = move,
+  })
+
+  toggles[dropdown.name] = function()
+    if not running(class) then
+      hl.dispatch(hl.dsp.exec_cmd("uwsm-app -- " .. dropdown.cmd))
+    end
+    toggle_special(dropdown)
+  end
+  o.bind(dropdown.key, dropdown.title, toggles[dropdown.name])
+
+  if dropdown.preload then o.launch_on_start(dropdown.cmd) end
+
+  ::continue::
+end

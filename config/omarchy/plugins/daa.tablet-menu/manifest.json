@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "daa.tablet-menu",
+  "name": "Tablet menu button",
+  "version": "1.0.0",
+  "author": "daa",
+  "description": "Arch logo that opens the tablet menu (tablet bar)",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Tablet menu button",
+    "description": "Arch logo that opens the tablet menu (tablet bar)",
+    "category": "Compositor",
+    "allowMultiple": false
+  }
+}

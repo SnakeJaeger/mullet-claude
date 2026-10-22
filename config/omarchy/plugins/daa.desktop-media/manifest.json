@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "daa.desktop-media",
+  "name": "Media (playing only)",
+  "version": "1.0.0",
+  "author": "daa",
+  "description": "MPRIS now-playing that only shows while something plays",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Media (playing only)",
+    "description": "MPRIS now-playing that only shows while something plays",
+    "category": "Media",
+    "allowMultiple": false
+  }
+}

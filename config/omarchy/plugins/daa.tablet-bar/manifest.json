@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "daa.tablet-bar",
+  "name": "Tablet bar",
+  "version": "1.0.0",
+  "author": "daa",
+  "description": "Touch bar for tablet mode (~/.local/bin/tablet-mode switches to it)",
+  "kinds": [
+    "bar"
+  ],
+  "entryPoints": {
+    "bar": "Bar.qml"
+  }
+}

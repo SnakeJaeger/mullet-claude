@@ -1,0 +1,12 @@
+#!/bin/bash
+# Open the Catfish dropdown (SUPER+D) already searching the whole drive for
+# the given text. The Omarchy menu's "Search files for …" row runs this.
+
+query="$*"
+[[ -z $query ]] && exec hyprctl eval 'dropdown_show("search")'
+
+# Single-quote for the shell the dropdown launches through; drop anything that
+# would end the Lua long string the arguments travel in.
+quoted="'${query//\'/\'\\\'\'}'"
+quoted=${quoted//]==]/}
+hyprctl eval "dropdown_relaunch(\"search\", [==[--start $quoted]==])" >/dev/null

@@ -1,0 +1,83 @@
+#!/bin/bash
+
+# Theme Qt and KDE apps (Dolphin, Kdenlive…) from the Omarchy theme just set.
+# The colors come from ~/.config/omarchy/themed/{kde.colors,qt6ct-colors.conf}.tpl,
+# which Omarchy renders into the current theme folder before hooks run.
+# Qt apps load qt6ct via QT_QPA_PLATFORMTHEME (hypr/envs.lua). Open apps need
+# a restart to pick changes up.
+
+theme="$HOME/.local/state/omarchy/current/theme"
+[[ -f $theme/kde.colors && -f $theme/qt6ct-colors.conf ]] || exit 0
+
+# KDE apps read their colors straight from kdeglobals. Write key by key so
+# whatever else the apps keep in there survives.
+group=""
+while IFS= read -r line; do
+  case "$line" in
+    "" | "#"*) ;;
+    "["*"]") group="${line#[}"; group="${group%]}" ;;
+    *=*) kwriteconfig6 --file kdeglobals --group "$group" --key "${line%%=*}" "${line#*=}" ;;
+  esac
+done <"$theme/kde.colors"
+
+icons=$(cat "$theme/icons.theme" 2>/dev/null)
+
+# Qt apps use a thin icon theme on top of the Omarchy one: white-ish
+# (theme foreground) outline icons for Dolphin's Places sidebar, like
+# Nautilus's. The places entries in ~/.local/share/user-places.xbel point at
+# the daa-places-* names; Dolphin sets the trash icon itself, so user-trash
+# and user-trash-full are overridden too. KDE only recolors these on Plasma,
+# so the color is baked in.
+fg=$(sed -n 's/^foreground *= *"\(#[0-9A-Fa-f]\{6\}\)".*/\1/p' "$theme/colors.toml")
+# Breeze fills in what the Omarchy icons lack (Dolphin's toolbar), in the
+# variant that shows up on the theme's background.
+breeze=breeze-dark
+grep -q '^mode *= *"light"' "$theme/colors.toml" && breeze=breeze
+qt_icons="$HOME/.local/share/icons/Omarchy-Qt"
+mkdir -p "$qt_icons/places"
+cat >"$qt_icons/index.theme" <<THEME
+[Icon Theme]
+Name=Omarchy Qt
+Comment=Omarchy icons plus Dolphin Places outlines (kde-qt-theme hook)
+Inherits=${icons:-$breeze},$breeze,hicolor
+Directories=places
+
+[places]
+Size=16
+Type=Scalable
+MinSize=8
+MaxSize=512
+THEME
+recolor() { sed "s/#232629/${fg:-#ffffff}/g" "/usr/share/icons/breeze/places/16/$1.svg" >"$qt_icons/places/$2.svg"; }
+for name in user-home user-desktop folder-documents folder-download folder-music folder-pictures folder-videos folder-remote user-trash; do
+  recolor "$name" "daa-places-$name"
+done
+recolor user-trash user-trash
+recolor user-trash-full user-trash-full
+icons="Omarchy-Qt"
+kwriteconfig6 --file kdeglobals --group KDE --key widgetStyle Breeze
+# KDE apps pick their scheme by name from their own rc file, not kdeglobals,
+# and fall back to Breeze Light whatever the palette says. Pre-select Omarchy
+# (the name stays the same across themes) unless an app has another pick.
+kwriteconfig6 --file kdeglobals --group UiSettings --key ColorScheme Omarchy
+for app in dolphin kdenlive okular gwenview ark kate filelight kcalc spectacle; do
+  command -v "$app" >/dev/null || continue
+  [[ -z $(kreadconfig6 --file "${app}rc" --group UiSettings --key ColorScheme) ]] &&
+    kwriteconfig6 --file "${app}rc" --group UiSettings --key ColorScheme Omarchy
+done
+[[ -n $icons ]] && kwriteconfig6 --file kdeglobals --group Icons --key Theme "$icons"
+
+# Also offered by name in KDE apps' own color scheme pickers.
+mkdir -p "$HOME/.local/share/color-schemes"
+ln -sf "$theme/kde.colors" "$HOME/.local/share/color-schemes/Omarchy.colors"
+
+# qt6ct: Breeze style with the theme palette and icons.
+mkdir -p "$HOME/.config/qt6ct/colors"
+ln -sf "$theme/qt6ct-colors.conf" "$HOME/.config/qt6ct/colors/Omarchy.conf"
+conf="$HOME/.config/qt6ct/qt6ct.conf"
+kwriteconfig6 --file "$conf" --group Appearance --key style Breeze
+kwriteconfig6 --file "$conf" --group Appearance --key custom_palette true
+kwriteconfig6 --file "$conf" --group Appearance --key color_scheme_path "$HOME/.config/qt6ct/colors/Omarchy.conf"
+kwriteconfig6 --file "$conf" --group Appearance --key standard_dialogs default
+[[ -n $icons ]] && kwriteconfig6 --file "$conf" --group Appearance --key icon_theme "$icons"
+exit 0

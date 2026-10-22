@@ -1,0 +1,21 @@
+#!/bin/bash
+# Menu keys (hypr/bindings.lua): close the menu if this key's own menu is up,
+# otherwise open it, switching over from whatever menu is showing.
+#   menu-toggle <route>                    an Omarchy menu route (root, system…)
+#   menu-toggle dmenu:<prompt> <command…>  a script-driven list (SUPER+K…)
+# daa.menu keeps what the open menu was opened as in the file below.
+
+want="$1"
+shift
+
+current=$(cat "${XDG_RUNTIME_DIR:-/tmp}/omarchy-menu-open" 2>/dev/null)
+if [[ -n $current && $current == "$want" ]] &&
+  hyprctl layers -j | jq -e '[.. | objects | select(.namespace? == "omarchy-menu")] | length > 0' >/dev/null; then
+  exec omarchy-menu close
+fi
+
+if [[ $want == dmenu:* ]]; then
+  exec "$@"
+else
+  exec omarchy-menu summon "$want"
+fi

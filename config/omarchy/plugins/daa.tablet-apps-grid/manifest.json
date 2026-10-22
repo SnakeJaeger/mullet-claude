@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "daa.tablet-apps-grid",
+  "name": "Tablet app grid",
+  "version": "1.0.0",
+  "author": "daa",
+  "description": "Touch app grid with a scroll rail, file browser and all-apps buttons (tablet bar)",
+  "kinds": [
+    "menu"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "menu": "Grid.qml"
+  }
+}

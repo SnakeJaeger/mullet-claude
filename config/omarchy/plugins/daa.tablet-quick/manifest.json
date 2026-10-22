@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "daa.tablet-quick",
+  "name": "Quick toggles button",
+  "version": "1.0.0",
+  "author": "daa",
+  "description": "Opens the clock island's toggles as a menu (tablet bar)",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Quick toggles button",
+    "description": "Opens the clock island's toggles as a menu (tablet bar)",
+    "category": "System",
+    "allowMultiple": false
+  }
+}
