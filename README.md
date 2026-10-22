@@ -32,6 +32,7 @@ Lua config.
 - [File map](#file-map)
 - [Installing](#installing)
 - [Known quirks](#known-quirks)
+- [License](#license)
 - [Mullet Claude](#mullet-claude)
 
 ---
@@ -358,6 +359,12 @@ touch and pen, panel `eDP-1`). Change the variables at the top of
   protection, not a rendering bug.
 - **Dolphin's sidebar highlight** is solid accent for a moment after launch
   (and while clicking), because the Places panel has keyboard focus then.
+
+---
+
+## License
+
+[MIT](LICENSE). Take whatever's useful.
 
 ---
 
