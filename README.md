@@ -22,6 +22,7 @@ Lua config.
 
 ## Contents
 
+- [Screenshots](#screenshots)
 - [Repo layout](#repo-layout)
 - [Desktop mode](#desktop-mode)
 - [Tablet mode](#tablet-mode)
@@ -31,6 +32,32 @@ Lua config.
 - [File map](#file-map)
 - [Installing](#installing)
 - [Known quirks](#known-quirks)
+- [Mullet Claude](#mullet-claude)
+
+---
+
+## Screenshots
+
+### Desktop (the business)
+
+| | |
+|---|---|
+| <img src="screenshots/desktop-01-clean.webp" alt="Floating bar islands over the wallpaper"><br>Floating bar islands over the wallpaper | <img src="screenshots/desktop-02-kitty-dropdown.webp" alt="Kitty dropdown (`SUPER + T`) with the fastfetch greeting"><br>Kitty dropdown (`SUPER + T`) with the fastfetch greeting |
+| <img src="screenshots/desktop-03-launcher.webp" alt="App launcher"><br>App launcher | <img src="screenshots/desktop-04-clipboard.webp" alt="Clipboard, bottom-right, with Clear all"><br>Clipboard, bottom-right, with Clear all |
+| <img src="screenshots/desktop-05-claude-dropdown.webp" alt="Claude Code dropdown (`SUPER + C`), mid-screenshot session"><br>Claude Code dropdown (`SUPER + C`), mid-screenshot session | <img src="screenshots/desktop-06-firefox.webp" alt="Firefox, themed from the Omarchy colours"><br>Firefox, themed from the Omarchy colours |
+| <img src="screenshots/desktop-07-clock-panel-brightness.webp" alt="Clock hover panel and the brightness pop-up"><br>Clock hover panel and the brightness pop-up | <img src="screenshots/desktop-08-stats-flyout.webp" alt="Stats flyout: CPU, memory, disk, temperature, uptime"><br>Stats flyout: CPU, memory, disk, temperature, uptime |
+| <img src="screenshots/desktop-09-dolphin.webp" alt="Dolphin with the Omarchy KDE theme and icon-only Places"><br>Dolphin with the Omarchy KDE theme and icon-only Places | <img src="screenshots/desktop-10-catfish-search.webp" alt="Catfish dropdown (`SUPER + D`) searching the whole drive"><br>Catfish dropdown (`SUPER + D`) searching the whole drive |
+| <img src="screenshots/desktop-11-keybindings.webp" alt="Keybindings (`SUPER + K`), top-right"><br>Keybindings (`SUPER + K`), top-right | <img src="screenshots/desktop-12-system-menu.webp" alt="System menu (`SUPER + ESCAPE`), bottom-left for touch"><br>System menu (`SUPER + ESCAPE`), bottom-left for touch |
+
+### Tablet (the party)
+
+| | |
+|---|---|
+| <img src="screenshots/tablet-01-desktop-dolphin.webp" alt="Tablet bar pinned to the right edge"><br>Tablet bar pinned to the right edge | <img src="screenshots/tablet-02-clean.webp" alt="Tablet mode, nothing open"><br>Tablet mode, nothing open |
+| <img src="screenshots/tablet-03-menu.webp" alt="Tablet menu with its shortcut sidebar"><br>Tablet menu with its shortcut sidebar | <img src="screenshots/tablet-04-app-grid.webp" alt="Touch app grid"><br>Touch app grid |
+| <img src="screenshots/tablet-05-quick-toggles.webp" alt="Quick toggles"><br>Quick toggles | <img src="screenshots/tablet-06-workspaces.webp" alt="Workspace switcher"><br>Workspace switcher |
+| <img src="screenshots/tablet-07-orientation.webp" alt="Orientation picker (hold the rotate button)"><br>Orientation picker (hold the rotate button) | <img src="screenshots/tablet-08-keyboard.webp" alt="On-screen keyboard over the launcher"><br>On-screen keyboard over the launcher |
+| <img src="screenshots/tablet-09-rnote.webp" alt="Rnote for the pen"><br>Rnote for the pen | <img src="screenshots/tablet-10-portrait-app-grid.webp" alt="Portrait: the bar follows the panel's right edge"><br>Portrait: the bar follows the panel's right edge |
 
 ---
 
@@ -319,6 +346,10 @@ touch and pen, panel `eDP-1`). Change the variables at the top of
 - **Scratchpad flash.** On an empty workspace, closing a bar panel can make a
   hidden scratchpad flash for a split second before it's hidden again.
   Hyprland hands focus back to it when nothing else can take it.
+- **No sound from the speakers yet.** The audio shows as "Dummy Output"
+  because of a ghost SoundWire device. It's fixed upstream in kernel 7.3, and
+  this machine is on 7.2, so it's waiting on Omarchy shipping a 7.3 kernel.
+  (See the hardware table.)
 - **Shell log noise.** Swapping bars logs harmless `Cannot read property …
   of null` warnings while widgets unload. Omarchy's own panels do the same.
 - **Comics.** Komikku can't open a file by path, so `comic-open` sends files
@@ -327,3 +358,15 @@ touch and pen, panel `eDP-1`). Change the variables at the top of
   protection, not a rendering bug.
 - **Dolphin's sidebar highlight** is solid accent for a moment after launch
   (and while clicking), because the Places panel has keyboard focus then.
+
+---
+
+## Mullet Claude
+
+Where it started: the original pen sketches for tablet mode, drawn in Rnote.
+The touch app grid with its scroll bar and File browser / All apps buttons,
+the tablet bar (workspace, Arch logo, keyboard, rotate, Omarchy toggles,
+clock, tray), and the tablet menu with its Home / Docs / Desktop and
+Screensaver / Log out / Shut down sidebar.
+
+![Mullet Claude: the original tablet-mode sketches](screenshots/mullet-claude-sketch.webp)
