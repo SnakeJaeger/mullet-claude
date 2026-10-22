@@ -23,7 +23,7 @@ local dropdowns = {
   -- its own GTK theme (omarchy/themed/catfish-gtk3.css.tpl).
   { key = "SUPER + D", name = "search", title = "Dropdown file search", cmd = "env GTK_THEME=Omarchy-Catfish catfish --path=/", match = "catfish", px = { 1000, 700 }, preload = true },
   -- Hangs off the upper right corner and slides in from the right.
-  { key = "SUPER + P", name = "bitwarden", title = "Dropdown Bitwarden", cmd = "bitwarden-desktop", match = "Bitwarden", px = { 723, 713 }, right = 10, slide = "slide", preload = true },
+  { key = "SUPER + P", name = "bitwarden", title = "Dropdown Bitwarden", cmd = "bitwarden-desktop", match = "Bitwarden", px = { 819, 713 }, right = 10, slide = "slide", preload = true },
 }
 
 local function dims(dropdown)
