@@ -155,7 +155,12 @@ Item {
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
-    : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight, panel.height - Style.gapsOut * 2)
+    : Math.min(Math.max(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight, root.showSidebar ? root.sidebarMinHeight : 0), panel.height - Style.gapsOut * 2)
+  // Tall enough for both sidebar button groups, so a search that leaves only
+  // a row or two doesn't squash them together.
+  readonly property int sidebarMinHeight: contentMargin * 2
+    + (sidebarTop.length + sidebarBottom.length) * (sidebarWidth - Style.space(12))
+    + (sidebarTop.length + sidebarBottom.length - 2) * Style.space(6) + Style.space(24)
 
   function finishRequest(selection) {
     if (!root.requestActive || !root.doneFile) {

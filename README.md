@@ -49,6 +49,7 @@ Lua config.
 | <img src="screenshots/desktop-07-clock-panel-brightness.webp" alt="Clock hover panel and the brightness pop-up"><br>Clock hover panel and the brightness pop-up | <img src="screenshots/desktop-08-stats-flyout.webp" alt="Stats flyout: CPU, memory, disk, temperature, uptime"><br>Stats flyout: CPU, memory, disk, temperature, uptime |
 | <img src="screenshots/desktop-09-dolphin.webp" alt="Dolphin with the Omarchy KDE theme and icon-only Places"><br>Dolphin with the Omarchy KDE theme and icon-only Places | <img src="screenshots/desktop-10-catfish-search.webp" alt="Catfish dropdown (`SUPER + D`) searching the whole drive"><br>Catfish dropdown (`SUPER + D`) searching the whole drive |
 | <img src="screenshots/desktop-11-keybindings.webp" alt="Keybindings (`SUPER + K`), top-right"><br>Keybindings (`SUPER + K`), top-right | <img src="screenshots/desktop-12-system-menu.webp" alt="System menu (`SUPER + ESCAPE`), bottom-left for touch"><br>System menu (`SUPER + ESCAPE`), bottom-left for touch |
+| <img src="screenshots/desktop-13-go-menu-file-search.webp" alt="Go menu (`SUPER + SPACE`): typing offers a whole-drive Catfish search"><br>Go menu (`SUPER + SPACE`): typing offers a whole-drive Catfish search | |
 
 ### Tablet (the party)
 
