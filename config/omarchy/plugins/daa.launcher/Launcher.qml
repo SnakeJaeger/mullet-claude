@@ -6,7 +6,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 
-// App launcher laid out as a 5 x 6 grid (scrolls past 30 apps). Type to
+// App launcher laid out as a 7 x 6 grid (scrolls past 42 apps). Type to
 // search, arrows to move, Enter or click to launch, Escape to clear/close.
 // Built from omarchy.emojis' grid picker. Apps come from the shell's shared
 // app library when the host provides it (hidden entries, icons and launch
@@ -31,7 +31,66 @@ Item {
   property int selectedIndex: 0
   property bool cursorActive: false
 
-  readonly property int columns: 5
+  // Category tabs beside the search. Click (or Ctrl+Tab) to narrow the grid;
+  // the active tab clicked again shows everything. Each app lands in one tab:
+  // a hand-placed id first, then the first tab (in categoryOrder) sharing one
+  // of its desktop categories, else Utility.
+  property string category: ""
+  readonly property var categoryTabs: [
+    { id: "web", label: "Web" },
+    { id: "utility", label: "Utility" },
+    { id: "create", label: "Create" },
+    { id: "communicate", label: "Communicate" },
+    { id: "entertain", label: "Entertain" }
+  ]
+  readonly property var categoryOrder: ["communicate", "entertain", "create", "web"]
+  readonly property var categoryMap: ({
+    communicate: ["Chat", "InstantMessaging", "Email", "Telephony", "VideoConference", "IRCClient", "ContactManagement"],
+    entertain: ["Game", "Player", "Music", "TV", "Amusement", "Emulator"],
+    create: ["Graphics", "AudioVideoEditing", "Recorder", "Office", "Development", "TextEditor", "IDE"],
+    web: ["WebBrowser", "Network", "RemoteAccess"]
+  })
+  readonly property var categoryOverrides: ({
+    "Zoom": "communicate",
+    "Basecamp": "communicate",
+    "Kindle": "entertain",
+    "info.febvre.Komikku": "entertain",
+    "com.github.johnfactotum.Foliate": "entertain",
+    "gns3": "utility",
+    "org.wireshark.Wireshark": "utility",
+    "localsend": "utility",
+    "mullvad-vpn": "utility"
+  })
+
+  function categoryOf(entry) {
+    var id = String(entry.id || "")
+    if (root.categoryOverrides[id]) return root.categoryOverrides[id]
+    var cats = entry.categories || []
+    for (var i = 0; i < root.categoryOrder.length; i++) {
+      var wanted = root.categoryMap[root.categoryOrder[i]]
+      for (var j = 0; j < cats.length; j++)
+        if (wanted.indexOf(String(cats[j])) !== -1) return root.categoryOrder[i]
+    }
+    return "utility"
+  }
+
+  function setCategory(next) {
+    root.category = root.category === next ? "" : next
+    root.selectedIndex = 0
+    root.rebuildDisplay()
+  }
+
+  // Ctrl+Tab steps through All -> Web -> ... -> Entertain -> All.
+  function cycleCategory(delta) {
+    var ids = [""]
+    for (var i = 0; i < root.categoryTabs.length; i++) ids.push(root.categoryTabs[i].id)
+    var at = ids.indexOf(root.category)
+    root.category = ids[(at + delta + ids.length) % ids.length]
+    root.selectedIndex = 0
+    root.rebuildDisplay()
+  }
+
+  readonly property int columns: 7
   readonly property int rows: 6
 
   // Shares the [menu] surface tokens, like the emoji picker.
@@ -55,6 +114,7 @@ Item {
   function open(payloadJson) {
     root.opened = true
     root.filterText = ""
+    root.category = ""
     root.selectedIndex = 0
     root.cursorActive = true
     if (root.appLibrary) root.appLibrary.refreshIcons()
@@ -99,7 +159,7 @@ Item {
         else if (generic.indexOf(q) !== -1) rank = 2
         else continue
       }
-      rows.push({ id: id, name: name, icon: String(entry.icon || ""), rank: rank, key: lower })
+      rows.push({ id: id, name: name, icon: String(entry.icon || ""), rank: rank, key: lower, entry: entry })
     }
     rows.sort(function(a, b) {
       if (a.rank !== b.rank) return a.rank - b.rank
@@ -124,12 +184,14 @@ Item {
         var entry = rows[i].entry
         var appId = String(entry.id || "")
         if (!appId) continue
+        if (root.category && root.categoryOf(entry) !== root.category) continue
         displayModel.append({ appId: appId, label: root.appLibrary.entryName(entry), appIcon: String(entry.icon || "") })
       }
     } else {
       var fallback = root.desktopEntryRows(root.filterText)
       for (var j = 0; j < fallback.length; j++) {
         if (!fallback[j].id) continue
+        if (root.category && root.categoryOf(fallback[j].entry) !== root.category) continue
         displayModel.append({ appId: fallback[j].id, label: fallback[j].name, appIcon: fallback[j].icon })
       }
     }
@@ -314,7 +376,10 @@ Item {
 
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: function(event) {
-          if (event.key === Qt.Key_Escape) {
+          if ((event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) && (event.modifiers & Qt.ControlModifier)) {
+            root.cycleCategory(event.key === Qt.Key_Backtab || (event.modifiers & Qt.ShiftModifier) ? -1 : 1)
+            event.accepted = true
+          } else if (event.key === Qt.Key_Escape) {
             if (root.filterText) root.setFilter("")
             else root.dismiss()
             event.accepted = true
@@ -361,22 +426,140 @@ Item {
         anchors.leftMargin: card.contentLeftInset
         spacing: root.contentSpacing
 
+        // Search on the left, then the category tabs split by tall rules.
         Item {
           width: parent.width
           height: root.headerHeight
 
-          Text {
-            textFormat: Text.PlainText
+          Item {
+            id: searchBox
             anchors.left: parent.left
+            anchors.right: tabRow.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            clip: true
+
+            Text {
+              id: searchText
+              textFormat: Text.PlainText
+              anchors.left: parent.left
+              anchors.right: parent.right
+              anchors.leftMargin: Style.space(10)
+              anchors.rightMargin: Style.space(8)
+              anchors.verticalCenter: parent.verticalCenter
+              text: root.filterText || "Search apps…"
+              color: root.foreground
+              opacity: root.filterText ? 1 : 0.58
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.heading
+              // Keep the end of a long query (where you're typing) in view.
+              elide: root.filterText ? Text.ElideLeft : Text.ElideRight
+            }
+
+            // Blinking text cursor: after the query, or before the placeholder.
+            Rectangle {
+              id: caret
+              width: Math.max(2, Style.space(2))
+              height: Math.round(Style.font.heading * 1.25)
+              radius: width / 2
+              anchors.verticalCenter: parent.verticalCenter
+              x: root.filterText
+                ? searchText.x + Math.min(searchText.contentWidth, searchText.width) + Style.space(1)
+                : searchText.x - width - Style.space(2)
+              color: root.foreground
+              visible: root.opened
+
+              SequentialAnimation on opacity {
+                id: caretBlink
+                running: root.opened
+                loops: Animation.Infinite
+                PropertyAction { value: 1 }
+                PauseAnimation { duration: 530 }
+                PropertyAction { value: 0 }
+                PauseAnimation { duration: 530 }
+              }
+            }
+
+            // Hold the caret solid while typing, then resume blinking.
+            Connections {
+              target: root
+              function onFilterTextChanged() { if (root.opened) caretBlink.restart() }
+            }
+          }
+
+          Row {
+            id: tabRow
             anchors.right: parent.right
-            anchors.leftMargin: Style.space(8)
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || "Search apps…"
-            color: root.foreground
-            opacity: root.filterText ? 1 : 0.58
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.heading
-            elide: Text.ElideRight
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+
+            // Every tab is as wide as the longest label so the rules fall at
+            // even intervals.
+            TextMetrics {
+              id: tabMetrics
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              font.weight: Font.DemiBold
+              font.capitalization: Font.AllUppercase
+              text: "COMMUNICATE"
+            }
+
+            Repeater {
+              model: root.categoryTabs
+
+              delegate: Row {
+                id: tab
+                required property var modelData
+                readonly property bool active: root.category === modelData.id
+                height: tabRow.height
+
+                Rectangle {
+                  width: Math.max(2, Style.space(2))
+                  height: Math.round(parent.height * 0.5)
+                  anchors.verticalCenter: parent.verticalCenter
+                  radius: width / 2
+                  // Grey: the theme's text colour faded into the card.
+                  color: Util.alpha(root.foreground, 0.3)
+                }
+
+                Item {
+                  width: Math.ceil(tabMetrics.advanceWidth) + Style.space(32)
+                  height: parent.height
+
+                  Rectangle {
+                    anchors.fill: parent
+                    anchors.leftMargin: Style.space(4)
+                    anchors.rightMargin: Style.space(4)
+                    anchors.topMargin: Style.space(4)
+                    anchors.bottomMargin: Style.space(4)
+                    radius: root.cornerRadius
+                    color: tab.active ? root.selectedBackground
+                      : (tabMouse.containsMouse ? Util.alpha(root.selectedBackground, 0.5) : "transparent")
+                  }
+
+                  Text {
+                    id: tabLabel
+                    textFormat: Text.PlainText
+                    anchors.centerIn: parent
+                    text: tab.modelData.label
+                    color: tab.active ? root.selectedText : root.foreground
+                    opacity: tab.active || tabMouse.containsMouse ? 1 : 0.85
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.body
+                    font.weight: Font.DemiBold
+                    font.capitalization: Font.AllUppercase
+                  }
+
+                  MouseArea {
+                    id: tabMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.setCategory(tab.modelData.id)
+                  }
+                }
+              }
+            }
           }
         }
 
@@ -386,7 +569,7 @@ Item {
 
           GridView {
             id: resultGrid
-            // Centre the 5 columns in whatever width the card ends up with.
+            // Centre the columns in whatever width the card ends up with.
             width: root.cellWidth * root.columns
             height: parent.height
             anchors.horizontalCenter: parent.horizontalCenter
@@ -469,7 +652,7 @@ Item {
 
             Text {
               textFormat: Text.PlainText
-              text: "No apps match “" + root.filterText + "”"
+              text: root.filterText ? "No apps match “" + root.filterText + "”" : "No apps here yet"
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily

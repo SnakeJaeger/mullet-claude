@@ -46,10 +46,11 @@ Lua config.
 | <img src="screenshots/desktop-01-clean.webp" alt="Floating bar islands over the wallpaper"><br>Floating bar islands over the wallpaper | <img src="screenshots/desktop-02-kitty-dropdown.webp" alt="Kitty dropdown (`SUPER + T`) with the fastfetch greeting"><br>Kitty dropdown (`SUPER + T`) with the fastfetch greeting |
 | <img src="screenshots/desktop-03-launcher.webp" alt="App launcher"><br>App launcher | <img src="screenshots/desktop-04-clipboard.webp" alt="Clipboard, bottom-right, with Clear all"><br>Clipboard, bottom-right, with Clear all |
 | <img src="screenshots/desktop-05-claude-dropdown.webp" alt="Claude Code dropdown (`SUPER + C`), mid-screenshot session"><br>Claude Code dropdown (`SUPER + C`), mid-screenshot session | <img src="screenshots/desktop-06-firefox.webp" alt="Firefox, themed from the Omarchy colours"><br>Firefox, themed from the Omarchy colours |
-| <img src="screenshots/desktop-07-clock-panel-brightness.webp" alt="Clock hover panel and the brightness pop-up"><br>Clock hover panel and the brightness pop-up | <img src="screenshots/desktop-08-stats-flyout.webp" alt="Stats flyout: CPU, memory, disk, temperature, uptime"><br>Stats flyout: CPU, memory, disk, temperature, uptime |
+| <img src="screenshots/desktop-07-clock-panel-brightness.webp" alt="Clock hover panel and the brightness pop-up"><br>Clock hover panel and the brightness pop-up | <img src="screenshots/desktop-08-stats-flyout.webp" alt="Stats card under the right island: CPU, RAM, disk, temperature, uptime"><br>Stats card under the right island: CPU, RAM, disk, temperature, uptime |
 | <img src="screenshots/desktop-09-dolphin.webp" alt="Dolphin with the Omarchy KDE theme and icon-only Places"><br>Dolphin with the Omarchy KDE theme and icon-only Places | <img src="screenshots/desktop-10-catfish-search.webp" alt="Catfish dropdown (`SUPER + D`) searching the whole drive"><br>Catfish dropdown (`SUPER + D`) searching the whole drive |
-| <img src="screenshots/desktop-11-keybindings.webp" alt="Keybindings (`SUPER + K`), top-right"><br>Keybindings (`SUPER + K`), top-right | <img src="screenshots/desktop-12-system-menu.webp" alt="System menu (`SUPER + ESCAPE`), bottom-left for touch"><br>System menu (`SUPER + ESCAPE`), bottom-left for touch |
-| <img src="screenshots/desktop-13-go-menu-file-search.webp" alt="Go menu (`SUPER + SPACE`): typing offers a whole-drive Catfish search"><br>Go menu (`SUPER + SPACE`): typing offers a whole-drive Catfish search | |
+| <img src="screenshots/desktop-11-keybindings.webp" alt="Keybindings (`SUPER + K`), top-left"><br>Keybindings (`SUPER + K`), top-left | <img src="screenshots/desktop-12-system-menu.webp" alt="System menu (`SUPER + ESCAPE`), bottom-left for touch"><br>System menu (`SUPER + ESCAPE`), bottom-left for touch |
+| <img src="screenshots/desktop-13-go-menu-file-search.webp" alt="Go menu (`SUPER + SPACE`): typing offers a whole-drive Catfish search"><br>Go menu (`SUPER + SPACE`): typing offers a whole-drive Catfish search | <img src="screenshots/desktop-14-quick-launch.webp" alt="Quick-launch card under the left island"><br>Quick-launch card under the left island |
+| <img src="screenshots/desktop-15-password.webp" alt="Password dialog, risen from the bottom to a third of the way up"><br>Password dialog, risen from the bottom to a third of the way up | |
 
 ### Tablet (the party)
 
@@ -81,7 +82,10 @@ blur behind them.
 - **Left:** Arch logo (turns cyan on hover, click opens the Go menu,
   right-click opens a terminal), workspace dots, and an **app-name island**.
   Hover the app-name island for a list of every window per workspace,
-  scratchpads included, and click one to jump to it.
+  scratchpads included, and click one to jump to it. Hover the Arch logo and
+  workspaces for a **quick-launch card**: Apps, Terminal, Files, Sublime and
+  Keybindings. Clicking the Arch logo hides it at once, so it never sits over
+  the Go menu.
 - **Middle:** a **now-playing island** that only appears while media is
   playing. It lingers 5 s after playback stops.
 - **Centre:** the clock island. Hover it and a **drop-down toggle panel**
@@ -89,8 +93,13 @@ blur behind them.
   Reminder, Night light, Do not disturb and Stay awake. Toggles that are on
   sit on a cyan tile, and hovered tiles turn cyan. Toggles that are on also
   show as small icons next to the clock. (`daa.desktop-indicators`)
-- **Right:** system icons. Hover the island for a **stats flyout** (CPU, RAM,
-  disk, temperature, uptime). Click it to open btop in a dropdown.
+- **Right:** system icons. Hover the island for a **stats card** that drops
+  below it (CPU, RAM, disk, temperature, uptime), styled like the clock's.
+  Click it to open btop in a dropdown. The CPU figure comes from two readings
+  a quarter second apart, so it's there as soon as the card opens.
+- **Tray** (`daa.tray`): the hidden-icons drawer takes no room while
+  collapsed. Omarchy's tray kept a gap for every hidden icon, so the bar grew
+  with each tray app.
 - Turned off on purpose: dragging the bar to another screen edge, drag
   re-ordering widgets, and double-click to toggle transparency. All three
   were too easy to hit by accident.
@@ -105,6 +114,10 @@ blur behind them.
 - Nautilus: Backspace goes back a folder, via a small nautilus-python
   extension (`local/share/nautilus-python/extensions/backspace_back.py`).
 - Screensaver dims the OLED to 20% and restores 80% on exit.
+- **Closing the lid doesn't suspend** (logind `HandleLidSwitch=ignore`), so
+  downloads and Wi-Fi keep going. `lid.lua` turns the panel off while it's
+  shut, and `~/.local/bin/lid-battery-guard` (a user service) suspends only
+  when the lid is shut, the charger is out and the battery is at 20% or less.
 
 ### Dropdown apps (`~/.config/hypr/dropdowns.lua`)
 One key summons an app that slides down from the top. The same key hides it
@@ -123,15 +136,22 @@ instant. Scripts and menus can summon one too:
 
 Each entry can set its size (`px` or screen fractions), pin itself to the
 right edge (`right = 10`) and pick its own slide direction (`slide =
-"slide"` comes in from the right). Hyprland can't give one special workspace
+"slide"` comes in from the right). `rise = 1 / 3` makes one come up from the
+bottom instead and rest with its centre a third of the way up: special
+workspaces can only slide in from the top or the side, so those skip the
+workspace animation and move the window itself. Hyprland can't give one special workspace
 its own animation through workspace rules, so the style is switched just
 before each toggle. `dropdown_relaunch(name, args)` restarts a dropdown with
 extra arguments, which is how the menu's file search opens Catfish already
 searching.
 
 ### Menus
-- **Keybindings** (`SUPER + K`): borderless, hangs off the top-right corner
-  and slides in from the right.
+- **Keybindings** (`SUPER + K`): borderless, hangs off the top-left corner
+  and slides in from the left.
+- **Password dialog** (`daa.polkit`): rises from the bottom and rests a third
+  of the way up. The speakers don't work yet, so it also **spins the fans
+  up** (`~/.local/bin/attention-fans`: half the cores busy, at most 20 s,
+  stopped as soon as the dialog closes) to get your attention.
 - **System / power menu** (`SUPER + ESCAPE`, power button): borderless, in the
   bottom-left corner, sliding in from the left. Escape is top-left on the
   keyboard, so the options are a short reach away on the touchscreen.
@@ -235,6 +255,8 @@ These work in both modes and adapt to tablet mode on their own:
 | `daa.osd` | On-screen display |
 | `daa.background` | Wallpaper renderer, plus tap-to-dismiss in tablet mode |
 | `daa.clipboard` | Clipboard manager: borderless, bottom-right, Clear all button |
+| `daa.polkit` | Password dialog: rises from the bottom, spins the fans up while waiting |
+| `daa.tray` | System tray whose collapsed drawer takes no room |
 
 ---
 
@@ -295,7 +317,7 @@ CSS target a window by name if the app sets one, and Catfish doesn't.)
 `daa.tablet-media`.
 
 **Shared:** `daa.menu`, `daa.launcher`, `daa.osd`, `daa.background`,
-`daa.clipboard`.
+`daa.clipboard`, `daa.polkit`, `daa.tray`.
 
 | Path | Mode | Purpose |
 |---|---|---|
@@ -308,6 +330,9 @@ CSS target a window by name if the app sets one, and Catfish doesn't.)
 | `~/.config/omarchy/hooks/theme-set.d/kde-qt-theme` | both | Applies the Qt/KDE theme on every theme change |
 | `~/.local/bin/menu-toggle` | both | Menu keys: re-press closes, other key switches |
 | `~/.local/bin/file-search` | both | Opens the Catfish dropdown searching for its arguments |
+| `~/.local/bin/attention-fans` | both | Spins the fans up while the password dialog waits |
+| `~/.config/hypr/lid.lua`, `~/.local/bin/lid-battery-guard`, `~/.config/systemd/user/lid-battery-guard.service` | both | Lid closed: panel off, suspend only on low battery |
+| `~/.local/bin/lab-status` | desktop | Status line for the Go menu's lab card (set `LAB_PROFILE` to your Remmina profile) |
 | `~/.config/hypr/dropdowns.lua`, `scratchpads.lua`, `workspace_collapse.lua`, `screensaver_brightness.lua`, `looknfeel.lua`, `bindings.lua` | both | Hyprland behaviour |
 | `~/.config/hypr/tablet_mode.lua` | tablet | Fold switch → `tablet-mode on/off` |
 | `~/.local/bin/tablet-mode` | tablet | The switcher (run with no arguments for usage) |
@@ -351,7 +376,8 @@ touch and pen, panel `eDP-1`). Change the variables at the top of
 - **No sound from the speakers yet.** The audio shows as "Dummy Output"
   because of a ghost SoundWire device. It's fixed upstream in kernel 7.3, and
   this machine is on 7.2, so it's waiting on Omarchy shipping a 7.3 kernel.
-  (See the hardware table.)
+  (See the hardware table.) Until then the password dialog spins the fans up
+  instead of beeping.
 - **Shell log noise.** Swapping bars logs harmless `Cannot read property …
   of null` warnings while widgets unload. Omarchy's own panels do the same.
 - **Comics.** Komikku can't open a file by path, so `comic-open` sends files

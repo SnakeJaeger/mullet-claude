@@ -95,6 +95,8 @@ o.window(".*", { no_blur = true })
 -- A touch more see-through than Omarchy's 0.985 / 0.96 (focused / unfocused).
 -- Browsers opt out of this tag, so they stay opaque.
 o.window({ tag = "default-opacity" }, { opacity = "0.93 0.90" })
+-- Remote desktops stay opaque, or the local wallpaper bleeds through.
+o.window("^org.remmina.Remmina$", { opacity = "1 1" })
 
 -- Window border: 1px (default 2). Its colour comes from the theme accent
 -- (cyan, set in ~/.config/omarchy/themes/tokyo-night/colors.toml).

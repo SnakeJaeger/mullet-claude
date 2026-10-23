@@ -138,29 +138,57 @@ Item {
   // menu was opened at its top level: "root" from the desktop Arch button,
   // "tablet" from the tablet bar's.
   readonly property bool showSidebar: !root.dmenuActive && (root.homeMenu === "root" || root.homeMenu === "tablet")
-  readonly property int sidebarWidth: Style.space(60)
+  readonly property int sidebarWidth: Style.space(76)
   readonly property var sidebarTop: [
     { icon: "󰋜", label: "Home", command: "uwsm-app -- nautilus --new-window ~" },
     { icon: "󰈙", label: "Documents", command: "uwsm-app -- nautilus --new-window ~/Documents" },
     { icon: "󰇄", label: "Desktop", command: "mkdir -p ~/Desktop && uwsm-app -- nautilus --new-window ~/Desktop" }
   ]
+  // Network group: your own remote-desktop / VPN buttons, e.g.
+  //   { icon: "󰍹", label: "Remmina", command: "uwsm-app -- remmina" }
+  // `image` (a single-colour #ffffff SVG in icons/) replaces the glyph and
+  // is recoloured like the glyphs. The group hides itself while empty.
+  readonly property var sidebarMiddle: []
   readonly property var sidebarBottom: [
     { icon: "󱄄", label: "Screensaver", command: "omarchy-launch-screensaver force" },
     { icon: "󰍃", label: "Log out", command: "omarchy-system-logout" },
     { icon: "󰐥", label: "Shut down", command: "omarchy-system-shutdown" }
   ]
+  // The Go menu (homeMenu root) drops the power group from the sidebar and
+  // puts Apps / Tablet / System in a row along the bottom instead (kept in
+  // every submenu opened from Go, so they stay one click away); those
+  // rows (plus About and the lab rows, still searchable) leave its list.
+  readonly property bool goLayout: !root.dmenuActive && root.homeMenu === "root"
+  readonly property bool showGoFooter: root.goLayout && !root.filterText
+  readonly property int goFooterButtonHeight: Math.round(root.baseRowHeight * 1.5)
+  // The lab card (LabCard.qml) rides just above the footer, so it counts as
+  // part of the footer's height.
+  readonly property int labCardHeight: Style.space(96)
+  readonly property int goFooterHeight: root.showGoFooter ? root.goFooterButtonHeight + root.contentSpacing + root.labCardHeight + Math.round(root.contentSpacing * 1.5) : 0
+  readonly property var goFooterItems: [
+    { icon: "󰀻", label: "Apps", command: "omarchy-shell shell toggle daa.launcher" },
+    { icon: "󰓶", label: "Tablet", target: "tablet" },
+    { icon: "󰐥", label: "System", target: "system" }
+  ]
+  readonly property var goHiddenRows: ["apps", "tablet", "system", "about"]
+  // The Go menu sits at the left screen edge, so its sidebar goes on the
+  // left; the tablet menu (beside the right-hand tablet bar) keeps it right.
+  readonly property bool sidebarLeft: root.goLayout
+  readonly property int sidebarLabelHeight: Style.font.body + Style.space(8)
 
   // The keybindings list takes the Bitwarden dropdown's 600x720 frame.
   property int cardWidth: panel.midScreen ? 600 : Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
-    : Math.min(Math.max(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight, root.showSidebar ? root.sidebarMinHeight : 0), panel.height - Style.gapsOut * 2)
-  // Tall enough for both sidebar button groups, so a search that leaves only
-  // a row or two doesn't squash them together.
-  readonly property int sidebarMinHeight: contentMargin * 2
-    + (sidebarTop.length + sidebarBottom.length) * (sidebarWidth - Style.space(12))
-    + (sidebarTop.length + sidebarBottom.length - 2) * Style.space(6) + Style.space(24)
+    : Math.min(Math.max(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight + goFooterHeight, root.showSidebar ? root.sidebarMinHeight : 0), panel.height - Style.gapsOut * 2)
+  // Tall enough for the sidebar's labelled groups, so a search that leaves
+  // only a row or two doesn't squash them together. The sidebar runs the
+  // full height of the card, beside the Go footer rather than above it.
+  readonly property int sidebarButtonCount: sidebarTop.length + (goLayout ? sidebarMiddle.length : sidebarBottom.length)
+  readonly property int sidebarMinHeight: contentMargin * 2 + sidebarLabelHeight * (goLayout ? 2 : 1)
+    + sidebarButtonCount * (sidebarWidth - Style.space(12))
+    + sidebarButtonCount * Style.space(6) + Style.space(goLayout ? 24 : 48)
 
   function finishRequest(selection) {
     if (!root.requestActive || !root.doneFile) {
@@ -211,7 +239,7 @@ Item {
   // derived from the card height, which this value feeds.
   function availableRowsHeight() {
     var top = panel.cardTop >= 0 ? panel.cardTop : Style.gapsOut
-    var available = panel.height - top - Style.gapsOut - root.contentMargin * 2 - root.headerHeight - root.contentSpacing
+    var available = panel.height - top - Style.gapsOut - root.contentMargin * 2 - root.headerHeight - root.contentSpacing - root.goFooterHeight
     // The starting menu sets the ceiling along with the offset: drilling into
     // a longer submenu scrolls behind the fold instead of growing the card.
     if (panel.maxRowsHeight >= 0) available = Math.min(available, panel.maxRowsHeight)
@@ -708,6 +736,7 @@ Item {
       for (var j = 0; j < root.itemOrder.length; j++) {
         var child = root.item(root.itemOrder[j])
         if (!child || child.parent !== active) continue
+        if (active === "root" && root.goLayout && root.goHiddenRows.indexOf(child.id) >= 0) continue
         if (!root.isVisible(child)) continue
         rows.push(root.displayRow(child, child.description, child.order))
       }
@@ -1165,10 +1194,9 @@ Item {
       onFileChanged: reload()
       onLoaded: panel.tabletOn = String(text() || "").trim() === "on"
     }
-    // The keybindings list (SUPER+K) hangs off the upper right corner
-    // instead, borderless, in the same spot as the Bitwarden dropdown
-    // (hypr/dropdowns.lua: 10px from the right, 50px down), sliding in from
-    // the right edge.
+    // The keybindings list (SUPER+K) hangs off the upper left corner
+    // instead, borderless, the Bitwarden dropdown's size mirrored: 10px from
+    // the left edge, 50px down, sliding in from the left edge.
     readonly property bool midScreen: root.dmenuActive && root.dmenuPrompt === "Keybindings"
     // The system (shutdown) menu sits in the bottom left corner instead,
     // sliding in from the left edge.
@@ -1216,8 +1244,7 @@ Item {
       // the card moves over to make room for it.
       readonly property real baseX: panel.barEdge === "left" ? panel.barThickness + Style.gapsOut
         : panel.barEdge === "right" ? panel.width - panel.barThickness - Style.gapsOut - width
-        : panel.midScreen ? panel.width - 10 - width
-        : panel.systemMenu ? 10
+        : panel.midScreen || panel.systemMenu ? 10
         : root.homeMenu === "root" && !panel.midScreen ? Style.gapsOut + 20
         : Math.round((panel.width - width) / 2)
       readonly property bool railLeft: panel.barEdge === "left"
@@ -1225,10 +1252,10 @@ Item {
       readonly property real railSpace: rail.visible ? rail.width + Style.space(8) : 0
       x: baseX + (railLeft ? railSpace : panel.barEdge === "right" ? -railSpace : 0)
       y: panel.effectiveCardTop
-      // 1 = pushed fully off the right edge (left for the system menu);
+      // 1 = pushed fully off the left edge (right edge for other menus);
       // slideIn eases it to 0.
       property real slide: 0
-      transform: Translate { x: card.slide * (panel.systemMenu ? -(card.x + card.width) : panel.width - card.x) }
+      transform: Translate { x: card.slide * (panel.systemMenu || panel.midScreen ? -(card.x + card.width) : panel.width - card.x) }
       NumberAnimation on slide {
         id: slideIn
         running: false
@@ -1320,30 +1347,38 @@ Item {
         visible: root.showSidebar
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        anchors.right: parent.right
         anchors.topMargin: card.contentTopInset
         anchors.bottomMargin: card.contentBottomInset
-        anchors.rightMargin: card.contentRightInset
+        x: root.sidebarLeft ? card.contentLeftInset : card.width - card.contentRightInset - width
         width: root.sidebarWidth
 
         Rectangle {
-          anchors.left: parent.left
+          x: root.sidebarLeft ? parent.width - width : 0
           anchors.top: parent.top
           anchors.bottom: parent.bottom
           width: Style.spacing.hairline
           color: Util.alpha(root.foreground, 0.2)
         }
 
+        // Files (folders) on top, then the Network group (sidebarMiddle).
         Column {
           anchors.top: parent.top
-          anchors.right: parent.right
+          x: root.sidebarLeft ? 0 : Style.space(12)
           spacing: Style.space(6)
+          Text { text: "Files"; width: root.sidebarWidth - Style.space(12); height: root.sidebarLabelHeight; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; color: root.foreground; opacity: 0.58; font.family: root.fontFamily; font.pixelSize: Style.font.body }
           Repeater { model: root.sidebarTop; delegate: sidebarButton }
+          // The Network group is desktop-only: not in the tablet menu.
+          Item { visible: root.goLayout && root.sidebarMiddle.length > 0; width: 1; height: Style.space(12) }
+          Text { visible: root.goLayout && root.sidebarMiddle.length > 0; text: "Network"; width: root.sidebarWidth - Style.space(12); height: root.sidebarLabelHeight; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; color: root.foreground; opacity: 0.58; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+          Repeater { model: root.goLayout ? root.sidebarMiddle : []; delegate: sidebarButton }
         }
 
+        // The tablet menu keeps its power group; the Go menu has System in
+        // its bottom row instead.
         Column {
+          visible: !root.goLayout
           anchors.bottom: parent.bottom
-          anchors.right: parent.right
+          x: root.sidebarLeft ? 0 : Style.space(12)
           spacing: Style.space(6)
           Repeater { model: root.sidebarBottom; delegate: sidebarButton }
         }
@@ -1359,12 +1394,44 @@ Item {
             radius: root.cornerRadius
             color: sideArea.pressed || sideArea.containsMouse ? root.selectedBackground : "transparent"
 
+            readonly property color iconColor: sideArea.pressed || sideArea.containsMouse ? root.selectedText : root.foreground
+            readonly property int iconSize: Math.round(Style.font.heading * 1.35)
+
             Text {
+              visible: !sideButton.modelData.image
               anchors.centerIn: parent
-              text: sideButton.modelData.icon
-              color: sideArea.pressed || sideArea.containsMouse ? root.selectedText : root.foreground
+              text: sideButton.modelData.icon || ""
+              color: sideButton.iconColor
               font.family: "JetBrainsMono Nerd Font"
-              font.pixelSize: Style.font.heading
+              font.pixelSize: sideButton.iconSize
+            }
+
+            // Image icons are single-colour SVGs (#ffffff) recoloured to the
+            // glyph colour, so they follow the theme like the Nerd Font icons.
+            FileView {
+              id: sideSvg
+              path: sideButton.modelData.image ? Quickshell.env("HOME") + "/.config/omarchy/plugins/daa.menu/icons/" + sideButton.modelData.image : ""
+              printErrors: false
+            }
+            Image {
+              visible: !!sideButton.modelData.image
+              anchors.centerIn: parent
+              width: sideButton.iconSize
+              height: sideButton.iconSize
+              sourceSize.width: width * Screen.devicePixelRatio
+              sourceSize.height: height * Screen.devicePixelRatio
+              fillMode: Image.PreserveAspectFit
+              smooth: true
+              source: sideButton.modelData.image && sideSvg.loaded
+                ? "data:image/svg+xml;charset=utf-8," + encodeURIComponent(sideSvg.text().replace(/#ffffff/g, String(sideButton.iconColor)))
+                : ""
+            }
+
+            PanelToolTip {
+              visible: sideArea.containsMouse
+              text: sideButton.modelData.label
+              x: root.sidebarLeft ? sideButton.width + Style.space(10) : -implicitWidth - Style.space(10)
+              y: Math.round((sideButton.height - implicitHeight) / 2)
             }
 
             MouseArea {
@@ -1381,12 +1448,114 @@ Item {
         }
       }
 
+      // Go menu lab card, just above the footer: lab ping + sparkline, GNS3 / Tailscale / Mullvad.
+      Loader {
+        id: labCard
+        // Always loaded so it keeps sampling pings while the menu is closed.
+        active: true
+        visible: root.showGoFooter && status === Loader.Ready
+        anchors.left: goFooter.left
+        anchors.right: goFooter.right
+        anchors.bottom: goFooter.top
+        // Clear of the footer's divider, which sits half a gap above it.
+        anchors.bottomMargin: root.contentSpacing * 1.5
+        height: root.labCardHeight
+        source: "file://" + Quickshell.env("HOME") + "/.config/omarchy/plugins/daa.menu/LabCard.qml"
+        onLoaded: {
+          item.active = Qt.binding(function() { return root.opened && root.showGoFooter })
+          item.foreground = Qt.binding(function() { return root.foreground })
+          item.hoverBackground = Qt.binding(function() { return root.selectedBackground })
+          item.fontFamily = Qt.binding(function() { return root.fontFamily })
+          item.radius = Qt.binding(function() { return root.cornerRadius })
+        }
+        Connections {
+          target: labCard.item
+          function onClicked() {
+            root.cancel()
+            root.runAction("uwsm-app -- remmina")
+          }
+        }
+      }
+
+      // Go menu bottom row: Apps / Tablet / System open their submenus.
+      Item {
+        id: goFooter
+        visible: root.showGoFooter
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        // Under the list only; the sidebar fills the column to its left.
+        anchors.leftMargin: card.contentLeftInset + (root.showSidebar && root.sidebarLeft ? root.sidebarWidth + Style.space(12) : 0)
+        anchors.rightMargin: card.contentRightInset
+        anchors.bottomMargin: card.contentBottomInset
+        height: root.goFooterButtonHeight
+
+        Rectangle {
+          anchors.left: parent.left
+          anchors.right: parent.right
+          y: -Math.round(root.contentSpacing / 2)
+          height: Style.spacing.hairline
+          color: Util.alpha(root.foreground, 0.2)
+        }
+
+        Row {
+          anchors.fill: parent
+          Repeater {
+            model: root.goFooterItems
+
+            Rectangle {
+              id: footButton
+              required property var modelData
+              width: goFooter.width / root.goFooterItems.length
+              height: goFooter.height
+              radius: root.cornerRadius
+              color: footArea.pressed || footArea.containsMouse ? root.selectedBackground : "transparent"
+
+              Column {
+                anchors.centerIn: parent
+                spacing: Style.space(4)
+                Text {
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  text: footButton.modelData.icon
+                  color: footArea.containsMouse ? root.selectedText : root.foreground
+                  font.family: "JetBrainsMono Nerd Font"
+                  font.pixelSize: Math.round(Style.font.heading * 1.5)
+                }
+                Text {
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  text: footButton.modelData.label
+                  color: footArea.containsMouse ? root.selectedText : root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.body
+                }
+              }
+
+              MouseArea {
+                id: footArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                  // Apps opens the SUPER+R app grid; the others are submenus.
+                  if (footButton.modelData.command) {
+                    root.cancel()
+                    root.runAction(footButton.modelData.command)
+                  } else {
+                    root.setActiveMenu(footButton.modelData.target, true, true)
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
       Column {
         anchors.fill: parent
         anchors.topMargin: card.contentTopInset
-        anchors.rightMargin: card.contentRightInset + (root.showSidebar ? root.sidebarWidth : 0)
+        anchors.rightMargin: card.contentRightInset + (root.showSidebar && !root.sidebarLeft ? root.sidebarWidth : 0)
         anchors.bottomMargin: card.contentBottomInset
-        anchors.leftMargin: card.contentLeftInset
+        anchors.leftMargin: card.contentLeftInset + (root.showSidebar && root.sidebarLeft ? root.sidebarWidth + Style.space(12) : 0)
         spacing: root.contentSpacing
 
         Rectangle {

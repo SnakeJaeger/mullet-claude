@@ -1,0 +1,10 @@
+#!/bin/bash
+# Spin the fans up to get attention (this laptop's speakers don't work):
+# busy-loop half the cores for at most 20 s. The polkit dialog (daa.polkit)
+# runs this while it waits for a password and stops it when it closes.
+cores=$(( $(nproc) / 2 ))
+trap 'kill $(jobs -p) 2>/dev/null' EXIT TERM INT
+for _ in $(seq "$cores"); do
+  timeout 20 sh -c 'while :; do :; done' &
+done
+wait

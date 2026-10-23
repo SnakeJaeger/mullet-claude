@@ -26,6 +26,7 @@ require("hypr.dropdowns")
 require("hypr.scratchpads")
 require("hypr.screensaver_brightness")
 require("hypr.tablet_mode")
+require("hypr.lid")
 
 -- Toggle config flags dynamically.
 require("default.hypr.toggles")

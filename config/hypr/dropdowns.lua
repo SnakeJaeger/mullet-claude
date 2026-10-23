@@ -10,6 +10,8 @@
 -- right = px pins the window that far from the right edge instead of centring.
 -- slide = the special workspace animation style for just this dropdown, e.g.
 -- "slide" to come in from the right instead of down from the top.
+-- rise = fraction of the screen height, measured up from the bottom, where the
+-- window's centre rests; the window rises from below the screen to get there.
 -- preload = true launches the app hidden at login so the first press is instant.
 local dropdowns = {
   -- Geometry copied from where it was hand-placed (119x35 cells at font 10)
@@ -24,7 +26,13 @@ local dropdowns = {
   { key = "SUPER + D", name = "search", title = "Dropdown file search", cmd = "env GTK_THEME=Omarchy-Catfish catfish --path=/", match = "catfish", px = { 1000, 700 }, preload = true },
   -- Hangs off the upper right corner and slides in from the right.
   { key = "SUPER + P", name = "bitwarden", title = "Dropdown Bitwarden", cmd = "bitwarden-desktop", match = "Bitwarden", px = { 819, 713 }, right = 10, slide = "slide", preload = true },
+  -- Example of `rise`: comes up from the bottom and rests a third of the way up.
+  -- { key = "SUPER + M", name = "vpn", title = "Dropdown VPN", cmd = "mullvad-vpn", match = "mullvad-vpn", px = { 320, 568 }, rise = 1 / 3, preload = true },
 }
+
+-- Bitwarden reloads its window and asks for focus every time the vault locks;
+-- with Omarchy's focus_on_activate that pulled the hidden dropdown into view.
+o.window("^Bitwarden$", { focus_on_activate = false })
 
 local function dims(dropdown)
   local w, h = dropdown.w or 0.7, dropdown.h or 0.6
@@ -40,11 +48,6 @@ local function slide_style(dropdown)
 end
 slide_style()
 
-local function toggle_special(dropdown)
-  slide_style(dropdown)
-  hl.dispatch(hl.dsp.workspace.toggle_special("dropdown-" .. dropdown.name))
-end
-
 -- Size and top-left position in layout px on a w x h (logical) monitor.
 local function place(dropdown, w, h)
   local fw, fh, fx, fy = dims(dropdown)
@@ -54,7 +57,13 @@ local function place(dropdown, w, h)
   end
   local x = (w - ww) // 2
   if dropdown.right then x = w - ww - dropdown.right end
+  if dropdown.rise then fy = math.floor(h * (1 - dropdown.rise) - wh / 2) end
   return ww, wh, x, fy
+end
+
+-- Where a rise dropdown waits while hidden: just under the bottom edge.
+local function parked_y(h)
+  return h + 20
 end
 
 local function running(class)
@@ -70,10 +79,67 @@ dropdown_windows = {}
 local claimed = {} -- dropdown name -> window address
 local pending = {} -- class -> dropdown waiting for its window
 local silent = {} -- class -> true when its pending window is a preload
+local lowering = {} -- rise dropdown name -> true while it slides down
 
 local function alive(address)
   for _, window in ipairs(hl.get_windows()) do
     if window.address == address then return true end
+  end
+  return false
+end
+
+-- Special workspaces can only slide in from the top or the side, so a rise
+-- dropdown shows and hides without the workspace animation and moves its
+-- window instead: parked under the bottom edge while hidden, slid up on show,
+-- and slid back down before the workspace hides.
+local function rise_move(dropdown, up)
+  local address = claimed[dropdown.name]
+  if not (address and alive(address)) then return end
+  local monitor = hl.get_active_monitor()
+  local w, h = monitor.width / monitor.scale, monitor.height / monitor.scale
+  local _, _, x, y = place(dropdown, w, h)
+  if not up then y = parked_y(h) end
+  hl.dispatch(hl.dsp.window.move({ window = "address:" .. address, x = monitor.x + x, y = monitor.y + y }))
+end
+
+local function rise_toggle(dropdown)
+  if lowering[dropdown.name] then return end
+  local workspace = "dropdown-" .. dropdown.name
+  local monitor = hl.get_active_monitor()
+  local shown = monitor and monitor.active_special_workspace
+  hl.animation({ leaf = "specialWorkspace", enabled = false })
+  if shown and shown.name == "special:" .. workspace then
+    lowering[dropdown.name] = true
+    rise_move(dropdown, false)
+    -- Hide once the window has (nearly) finished sliding down.
+    hl.timer(function()
+      lowering[dropdown.name] = nil
+      hl.animation({ leaf = "specialWorkspace", enabled = false })
+      hl.dispatch(hl.dsp.workspace.toggle_special(workspace))
+      slide_style()
+    end, { timeout = 300, type = "oneshot" })
+  else
+    rise_move(dropdown, false)
+    hl.dispatch(hl.dsp.workspace.toggle_special(workspace))
+    rise_move(dropdown, true)
+  end
+end
+
+local function toggle_special(dropdown)
+  if dropdown.rise then return rise_toggle(dropdown) end
+  slide_style(dropdown)
+  hl.dispatch(hl.dsp.workspace.toggle_special("dropdown-" .. dropdown.name))
+end
+
+-- scratchpads.lua hides a showing special workspace (click away, SUPER+X)
+-- through this first, so a rise dropdown slides down instead of vanishing.
+-- Returns true when it handled the hide.
+function dropdown_hide(special_name)
+  for _, dropdown in ipairs(dropdowns) do
+    if dropdown.rise and special_name == "special:dropdown-" .. dropdown.name then
+      rise_toggle(dropdown)
+      return true
+    end
   end
   return false
 end
@@ -91,6 +157,7 @@ hl.on("window.open", function(window)
   local monitor = window.monitor or hl.get_active_monitor()
   local w, h = monitor.width / monitor.scale, monitor.height / monitor.scale
   local ww, wh, x, y = place(dropdown, w, h)
+  if dropdown.rise then y = parked_y(h) end
   hl.dispatch(hl.dsp.window.float({ window = window, action = "enable" }))
   hl.dispatch(hl.dsp.window.resize({ window = window, x = ww, y = wh }))
   hl.dispatch(hl.dsp.window.move({ window = window, x = monitor.x + x, y = monitor.y + y }))
@@ -117,6 +184,10 @@ function dropdown_refit(transform)
       if window.class == class and (not dropdown.match or window.address == claimed[dropdown.name]
           or (window.workspace and window.workspace.name == "special:dropdown-" .. dropdown.name)) then
         local ww, wh, x, y = place(dropdown, w, h)
+        local shown = monitor.active_special_workspace
+        if dropdown.rise and not (shown and shown.name == "special:dropdown-" .. dropdown.name) then
+          y = parked_y(h)
+        end
         hl.dispatch(hl.dsp.window.resize({ window = window, x = ww, y = wh }))
         hl.dispatch(hl.dsp.window.move({ window = window, x = monitor.x + x, y = monitor.y + y }))
       end

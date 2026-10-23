@@ -4,7 +4,7 @@
   "name": "App grid",
   "version": "1.0.0",
   "author": "daa",
-  "description": "5 x 6 grid app launcher with search",
+  "description": "7 x 6 grid app launcher with search and category tabs",
   "kinds": [
     "menu"
   ],

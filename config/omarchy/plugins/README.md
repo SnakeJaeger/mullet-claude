@@ -9,7 +9,7 @@ which swaps the desktop bar for the tablet bar and back.
 ### Desktop only — `daa.desktop-*`
 | Plugin | What it is |
 |---|---|
-| `daa.desktop-bar` | Desktop bar (islands, stats flyout) |
+| `daa.desktop-bar` | Desktop bar (islands; hover cards: quick-launch under the left island, stats under the right) |
 | `daa.desktop-arch-menu` | Arch logo button → Go menu |
 | `daa.desktop-workspaces` | Workspace dots |
 | `daa.desktop-app-name` | Focused-app island next to the workspaces |
@@ -32,11 +32,13 @@ which swaps the desktop bar for the tablet bar and back.
 ### Shared — plain `daa.*` (behave differently in tablet mode)
 | Plugin | What it is |
 |---|---|
-| `daa.menu` | All menus (Go menu, tablet menu, quick toggles…); typing in the root menu adds a "Search all files" row (→ ~/.local/bin/file-search → Catfish dropdown); system (shutdown) menu is borderless, bottom-left, slides in from the left; menu keys go through ~/.local/bin/menu-toggle (re-press closes, other key switches); SUPER+K keybindings list is borderless, 600x720 in the Bitwarden dropdown spot, slides in from the right |
+| `daa.menu` | All menus (Go menu, tablet menu, quick toggles…); Go menu's Apps / Tablet / System bottom row stays in every Go submenu (hidden while searching); typing in the root menu adds a "Search all files" row (→ ~/.local/bin/file-search → Catfish dropdown); system (shutdown) menu is borderless, bottom-left, slides in from the left; menu keys go through ~/.local/bin/menu-toggle (re-press closes, other key switches); SUPER+K keybindings list is borderless, 600x720, top-left (10px in, 50px down), slides in from the left |
 | `daa.clipboard` | Clipboard manager (SUPER+V, SUPER+CTRL+V), borderless, bottom-right, slides in from the right; header Clear button (= Shift+Delete, asks first) |
-| `daa.launcher` | App launcher (scroll rail in tablet mode) |
+| `daa.launcher` | App launcher: search + Web/Utility/Create/Communicate/Entertain tabs (scroll rail in tablet mode) |
 | `daa.osd` | On-screen display |
 | `daa.background` | Wallpaper (tap = dismiss in tablet mode) |
+| `daa.tray` | System tray, clone of omarchy.tray: the collapsed drawer takes no width (stock reserved a gap for every hidden icon); both BarModel.js files treat it as the tray |
+| `daa.polkit` | Password (polkit) dialog, clone of omarchy.polkit: rises from the bottom, rests with its centre 1/3 up, drops on close |
 
 ## Other files
 

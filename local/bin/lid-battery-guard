@@ -1,0 +1,24 @@
+#!/bin/bash
+# Closing the lid no longer suspends (logind HandleLidSwitch=ignore), so wifi
+# and everything keep running. This checks once a minute and suspends only
+# when the lid is shut, the charger is out, and the battery is at or below
+# LOW_BATTERY. Run by ~/.config/systemd/user/lid-battery-guard.service.
+#
+# Future: the lid-closed branch is the place for a phone alert on high temp.
+
+LOW_BATTERY=20
+INTERVAL=60
+
+BAT=/sys/class/power_supply/BAT0
+AC=/sys/class/power_supply/ADP0
+
+lid_closed() {
+  grep -q closed /proc/acpi/button/lid/*/state 2>/dev/null
+}
+
+while true; do
+  if lid_closed && [[ $(<"$AC/online") == 0 ]] && (( $(<"$BAT/capacity") <= LOW_BATTERY )); then
+    systemctl suspend
+  fi
+  sleep "$INTERVAL"
+done

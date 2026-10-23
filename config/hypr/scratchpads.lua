@@ -42,7 +42,10 @@ local function hide_special(monitor)
   if not special or hiding then return end
   hiding = true
   hl.timer(function() hiding = false end, { timeout = 400, type = "oneshot" })
-  toggle_special_named(special.name)
+  -- Dropdowns that rise from the bottom slide back down before hiding.
+  if not (dropdown_hide and dropdown_hide(special.name)) then
+    toggle_special_named(special.name)
+  end
   focus_regular(monitor)
 end
 

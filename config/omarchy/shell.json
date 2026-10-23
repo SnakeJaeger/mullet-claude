@@ -34,7 +34,7 @@
       ],
       "right": [
         {
-          "id": "omarchy.tray"
+          "id": "daa.tray"
         },
         {
           "id": "omarchy.agents"
@@ -63,13 +63,15 @@
     "daa.osd",
     "daa.menu",
     "daa.background",
-    "daa.clipboard"
+    "daa.clipboard",
+    "daa.polkit"
   ],
   "disabledPlugins": [
     "omarchy.osd",
     "omarchy.menu",
     "omarchy.background",
-    "omarchy.clipboard"
+    "omarchy.clipboard",
+    "omarchy.polkit"
   ],
   "idle": {
     "lock": 300,
@@ -120,6 +122,9 @@
     },
     {
       "id": "daa.clipboard"
+    },
+    {
+      "id": "daa.polkit"
     }
   ],
   "version": 1

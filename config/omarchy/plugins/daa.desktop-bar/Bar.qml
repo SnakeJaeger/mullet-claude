@@ -1379,8 +1379,8 @@ Item {
       }
     }
 
-    // Stats flyout: slides out of the right island's left edge while the
-    // pointer rests on the island (or on the flyout itself).
+    // Stats flyout: drops below the right island while the pointer rests on
+    // the island (or on the flyout itself).
     // Apps dropdown: grows down out of the app island while the pointer rests
     // on the island (or on the dropdown itself).
     property Item appIsland: null
@@ -1471,6 +1471,145 @@ Item {
       }
     }
 
+    // Quick-launch dropdown: drops below the left island (Arch button and
+    // workspaces) while the pointer rests on it or on the dropdown, styled
+    // like the clock and stats dropdowns.
+    property Item leftIsland: null
+    property bool quickIslandHovered: false
+    property bool quickFlyoutHovered: false
+    property bool quickFlyoutOpen: false
+    // Set by a click on the island (e.g. the Arch button opening the Go menu)
+    // so the card vanishes at once instead of fading over the menu.
+    property bool quickSnap: false
+
+    function dismissQuick() {
+      quickOpenTimer.stop()
+      quickCloseTimer.stop()
+      quickSnap = true
+      quickFlyoutOpen = false
+    }
+
+    function setQuickHover(which, hovered) {
+      if (which === "island") quickIslandHovered = hovered
+      else quickFlyoutHovered = hovered
+      if (quickIslandHovered || quickFlyoutHovered) {
+        quickCloseTimer.stop()
+        if (!quickFlyoutOpen) quickOpenTimer.restart()
+      } else {
+        quickOpenTimer.stop()
+        quickCloseTimer.restart()
+      }
+    }
+
+    Timer {
+      id: quickOpenTimer
+      interval: 250
+      onTriggered: if (!root.vertical && barWindow.leftIsland && !root.activePopout) {
+        barWindow.quickSnap = false
+        barWindow.quickFlyoutOpen = true
+      }
+    }
+
+    Timer {
+      id: quickCloseTimer
+      interval: 300
+      onTriggered: barWindow.quickFlyoutOpen = false
+    }
+
+    Connections {
+      target: root
+      function onActivePopoutChanged() { if (root.activePopout) barWindow.quickFlyoutOpen = false }
+    }
+
+    PopupWindow {
+      id: quickFlyoutWindow
+
+      readonly property int gap: Style.space(6)
+
+      visible: barWindow.leftIsland !== null && (barWindow.quickFlyoutOpen || quickPanel.opacity > 0)
+      color: "transparent"
+      implicitWidth: quickPanel.implicitWidth
+      implicitHeight: quickPanel.implicitHeight
+
+      anchor {
+        id: quickFlyoutAnchor
+        window: barWindow
+        adjustment: PopupAdjustment.None
+        edges: Edges.Top | Edges.Left
+        gravity: Edges.Bottom | Edges.Right
+        rect.width: 1
+        rect.height: 1
+
+        onAnchoring: {
+          var island = barWindow.leftIsland
+          if (!island) return
+          var point = barWindow.contentItem.mapFromItem(island, -root.pillPadding, 0)
+          quickFlyoutAnchor.rect.x = Math.round(point.x)
+          quickFlyoutAnchor.rect.y = root.barSize - root.pillInset + quickFlyoutWindow.gap
+        }
+      }
+
+      Rectangle {
+        id: quickPanel
+
+        readonly property int pad: Style.space(8)
+
+        implicitWidth: quickRow.implicitWidth + pad * 2
+        implicitHeight: quickRow.implicitHeight + pad * 2
+        width: implicitWidth
+        height: implicitHeight
+        radius: Style.space(14)
+        color: Qt.rgba(0, 0, 0, 0.6)
+        opacity: barWindow.quickFlyoutOpen ? 1 : 0
+        transformOrigin: Item.TopLeft
+        scale: barWindow.quickFlyoutOpen ? 1 : 0.92
+
+        Behavior on opacity { enabled: !barWindow.quickSnap; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+        Behavior on scale { enabled: !barWindow.quickSnap; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+
+        HoverHandler {
+          onHoveredChanged: barWindow.setQuickHover("flyout", hovered)
+        }
+
+        Row {
+          id: quickRow
+          anchors.centerIn: parent
+          spacing: Style.space(4)
+
+          QuickTile {
+            glyph: "󰀻"
+            caption: "Apps"
+            command: "omarchy-shell shell toggle daa.launcher"
+            onLaunched: barWindow.quickFlyoutOpen = false
+          }
+          QuickTile {
+            glyph: "\uf120"
+            caption: "Terminal"
+            command: "hyprctl eval 'dropdown_show(\"terminal\")'"
+            onLaunched: barWindow.quickFlyoutOpen = false
+          }
+          QuickTile {
+            glyph: "󰉋"
+            caption: "Files"
+            command: "hyprctl eval 'dropdown_show(\"files\")'"
+            onLaunched: barWindow.quickFlyoutOpen = false
+          }
+          QuickTile {
+            glyph: "\ue7aa"
+            caption: "Sublime"
+            command: "uwsm-app -- subl"
+            onLaunched: barWindow.quickFlyoutOpen = false
+          }
+          QuickTile {
+            glyph: "󰌌"
+            caption: "Keybindings"
+            command: "~/.local/bin/menu-toggle 'dmenu:Keybindings' omarchy-menu-keybindings"
+            onLaunched: barWindow.quickFlyoutOpen = false
+          }
+        }
+      }
+    }
+
     property Item rightIsland: null
     property bool statsIslandHovered: false
     property bool statsFlyoutHovered: false
@@ -1509,57 +1648,61 @@ Item {
       function onActivePopoutChanged() { if (root.activePopout) barWindow.statsFlyoutOpen = false }
     }
 
+    // Drops below the right island, right edges aligned, styled like the
+    // clock island's indicator dropdown (daa.desktop-indicators).
     PopupWindow {
       id: statsFlyoutWindow
 
-      readonly property int gap: Style.space(4)
-      readonly property real fullWidth: Math.ceil(statsContent.implicitWidth + root.pillPadding * 4)
+      readonly property int gap: Style.space(6)
 
-      visible: barWindow.rightIsland !== null && (barWindow.statsFlyoutOpen || statsPill.width > 0)
+      visible: barWindow.rightIsland !== null && (barWindow.statsFlyoutOpen || statsPanel.opacity > 0)
       color: "transparent"
-      implicitWidth: fullWidth
-      implicitHeight: root.barSize - root.pillInset * 2
+      implicitWidth: statsPanel.implicitWidth
+      implicitHeight: statsPanel.implicitHeight
 
       anchor {
         id: statsFlyoutAnchor
         window: barWindow
         adjustment: PopupAdjustment.None
         edges: Edges.Top | Edges.Left
-        gravity: Edges.Bottom | Edges.Right
+        gravity: Edges.Bottom | Edges.Left
         rect.width: 1
         rect.height: 1
 
         onAnchoring: {
           var island = barWindow.rightIsland
           if (!island) return
-          var point = barWindow.contentItem.mapFromItem(island, -root.pillPadding, 0)
-          statsFlyoutAnchor.rect.x = Math.round(point.x - statsFlyoutWindow.gap - statsFlyoutWindow.fullWidth)
-          statsFlyoutAnchor.rect.y = root.pillInset
+          var point = barWindow.contentItem.mapFromItem(island, island.width + root.pillPadding, 0)
+          statsFlyoutAnchor.rect.x = Math.round(point.x)
+          statsFlyoutAnchor.rect.y = root.barSize - root.pillInset + statsFlyoutWindow.gap
         }
       }
 
       Rectangle {
-        id: statsPill
-        anchors.right: parent.right
-        height: parent.height
-        width: barWindow.statsFlyoutOpen ? statsFlyoutWindow.fullWidth : 0
-        radius: height / 2
-        color: Qt.rgba(0, 0, 0, 0.6)
-        clip: true
+        id: statsPanel
 
-        Behavior on width {
-          NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
-        }
+        readonly property int pad: Style.space(8)
+
+        implicitWidth: statsContent.implicitWidth + pad * 2
+        implicitHeight: statsContent.implicitHeight + pad * 2
+        width: implicitWidth
+        height: implicitHeight
+        radius: Style.space(14)
+        color: Qt.rgba(0, 0, 0, 0.6)
+        opacity: barWindow.statsFlyoutOpen ? 1 : 0
+        transformOrigin: Item.TopRight
+        scale: barWindow.statsFlyoutOpen ? 1 : 0.92
+
+        Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+        Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
         StatsFlyoutContent {
           id: statsContent
-          anchors.right: parent.right
-          anchors.rightMargin: root.pillPadding * 2
-          anchors.verticalCenter: parent.verticalCenter
-          opacity: statsPill.width / statsFlyoutWindow.fullWidth
+          anchors.centerIn: parent
         }
 
         HoverHandler {
+          cursorShape: Qt.PointingHandCursor
           onHoveredChanged: barWindow.setStatsHover("flyout", hovered)
         }
 
@@ -1642,6 +1785,26 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           // +1 top padding inside the left island (pill size is unchanged).
           anchors.verticalCenterOffset: 1
+          Component.onCompleted: barWindow.leftIsland = leftModules
+          Component.onDestruction: if (barWindow.leftIsland === leftModules) barWindow.leftIsland = null
+
+          HoverHandler {
+            onHoveredChanged: barWindow.setQuickHover("island", hovered)
+            Component.onDestruction: if (hovered) barWindow.setQuickHover("island", false)
+          }
+        }
+
+        // Any click on the left island hides the quick card straight away (e.g.
+        // the Arch button opening the Go menu). It sits above the island so it
+        // sees the press before the button's own MouseArea grabs it; the grab
+        // is passive, so the button and workspaces still get the click.
+        Item {
+          anchors.fill: leftModules
+          z: 10
+          PointHandler {
+            acceptedButtons: Qt.AllButtons
+            onActiveChanged: if (active) barWindow.dismissQuick()
+          }
         }
 
         RightModules {
@@ -1842,17 +2005,16 @@ Item {
   property real statsDiskTotal: 0
   property real statsTemp: -1
   property int statsUptime: 0
-  property var statsLastCpu: null
 
   function parseStats(text) {
     var lines = String(text || "").split("\n")
     for (var i = 0; i < lines.length; i++) {
       var f = lines[i].trim().split(/\s+/)
-      if (f[0] === "cpu" && f.length >= 3) {
-        var total = Number(f[1]), idle = Number(f[2])
-        if (statsLastCpu && total > statsLastCpu.total)
-          statsCpuPercent = 100 * (1 - (idle - statsLastCpu.idle) / (total - statsLastCpu.total))
-        statsLastCpu = { total: total, idle: idle }
+      // Two /proc/stat readings a quarter second apart, so the card has a
+      // CPU figure as soon as it opens: cpu total1 idle1 total2 idle2.
+      if (f[0] === "cpu" && f.length >= 5) {
+        var dTotal = Number(f[3]) - Number(f[1]), dIdle = Number(f[4]) - Number(f[2])
+        if (dTotal > 0) statsCpuPercent = 100 * (1 - dIdle / dTotal)
       } else if (f[0] === "mem" && f.length >= 5) {
         statsMemTotal = Number(f[1]) * 1024
         statsMemUsed = (Number(f[1]) - Number(f[2])) * 1024
@@ -1884,7 +2046,8 @@ Item {
   Process {
     id: statsProc
     command: ["sh", "-c",
-      "read _ u n s i w q sq st _ < /proc/stat; echo cpu $((u+n+s+i+w+q+sq+st)) $((i+w)); " +
+      "read _ u n s i w q sq st _ < /proc/stat; t1=$((u+n+s+i+w+q+sq+st)); i1=$((i+w)); sleep 0.25; " +
+      "read _ u n s i w q sq st _ < /proc/stat; echo cpu $t1 $i1 $((u+n+s+i+w+q+sq+st)) $((i+w)); " +
       "awk '/^MemTotal/{t=$2} /^MemAvailable/{a=$2} /^SwapTotal/{st=$2} /^SwapFree/{sf=$2} END{print \"mem\",t,a,st,sf}' /proc/meminfo; " +
       "df -B1 --output=size,used / | tail -n1 | sed 's/^/disk /'; " +
       "for h in /sys/class/hwmon/hwmon*; do [ \"$(cat $h/name)\" = coretemp ] && echo temp $(cat $h/temp1_input); done; " +
@@ -2029,63 +2192,139 @@ Item {
     }
   }
 
-  component StatItem: Row {
+  // A quick-launch dropdown tile: big glyph over a caption, accent on hover,
+  // like the clock dropdown's indicator tiles.
+  component QuickTile: Rectangle {
+    id: quickTile
     property string glyph: ""
-    property string label: ""
-    property bool warn: false
-    spacing: Style.space(5)
+    property string caption: ""
+    property string command: ""
+    signal launched()
+    readonly property color ink: quickTileHover.hovered ? Commons.Color.accent : root.barForeground
 
-    Text {
-      anchors.verticalCenter: parent.verticalCenter
-      text: parent.glyph
-      color: parent.warn ? root.urgent : root.barForeground
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.body
-      opacity: parent.warn ? 1 : 0.7
+    width: Style.space(76)
+    height: quickColumn.implicitHeight + Style.space(14)
+    radius: Style.space(10)
+    color: quickTileHover.hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+
+    Behavior on color { ColorAnimation { duration: 120 } }
+
+    Column {
+      id: quickColumn
+      anchors.centerIn: parent
+      spacing: Style.space(4)
+
+      Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        text: quickTile.glyph
+        color: quickTile.ink
+        font.family: root.fontFamily
+        font.pixelSize: Math.round(Style.bar.iconFont * 1.6)
+        Behavior on color { ColorAnimation { duration: 120 } }
+      }
+
+      Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        textFormat: Text.PlainText
+        text: quickTile.caption
+        color: quickTile.ink
+        opacity: 0.9
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        Behavior on color { ColorAnimation { duration: 120 } }
+      }
     }
 
-    Text {
-      anchors.verticalCenter: parent.verticalCenter
-      textFormat: Text.PlainText
-      text: parent.label
-      color: parent.warn ? root.urgent : root.barForeground
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.body
+    HoverHandler { id: quickTileHover; cursorShape: Qt.PointingHandCursor }
+    TapHandler {
+      onTapped: {
+        root.run(quickTile.command)
+        quickTile.launched()
+      }
+    }
+  }
+
+  component StatItem: Item {
+    id: statItem
+    property string glyph: ""
+    property string value: ""
+    property string caption: ""
+    property bool warn: false
+    readonly property color ink: warn ? root.urgent : root.barForeground
+
+    width: Style.space(76)
+    height: statColumn.implicitHeight + Style.space(14)
+
+    Column {
+      id: statColumn
+      anchors.centerIn: parent
+      spacing: Style.space(3)
+
+      Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        text: statItem.glyph
+        color: statItem.ink
+        font.family: root.fontFamily
+        font.pixelSize: Math.round(Style.bar.iconFont * 1.6)
+      }
+
+      Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        textFormat: Text.PlainText
+        text: statItem.value
+        color: statItem.ink
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+      }
+
+      Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        textFormat: Text.PlainText
+        text: statItem.caption
+        color: statItem.ink
+        opacity: 0.7
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
     }
   }
 
   component StatsFlyoutContent: Row {
     id: statsRow
-    spacing: Style.space(14)
+    spacing: Style.space(4)
 
     readonly property real memPercent: root.statsMemTotal > 0 ? 100 * root.statsMemUsed / root.statsMemTotal : 0
     readonly property real diskPercent: root.statsDiskTotal > 0 ? 100 * root.statsDiskUsed / root.statsDiskTotal : 0
 
     StatItem {
       glyph: "󰻠"
-      label: root.statsCpuPercent < 0 ? "…" : Math.round(root.statsCpuPercent) + "%"
+      value: root.statsCpuPercent < 0 ? "…" : Math.round(root.statsCpuPercent) + "%"
+      caption: "CPU"
       warn: root.statsCpuPercent >= 90
     }
     StatItem {
       glyph: "󰍛"
-      label: root.formatGiB(root.statsMemUsed, 1) + "/" + root.formatGiB(root.statsMemTotal, 0) + "G"
-        + (root.statsSwapUsed > 104857600 ? " +" + root.formatGiB(root.statsSwapUsed, 1) + " swap" : "")
+      value: root.formatGiB(root.statsMemUsed, 1) + "/" + root.formatGiB(root.statsMemTotal, 0) + "G"
+      caption: root.statsSwapUsed > 104857600 ? "RAM +" + root.formatGiB(root.statsSwapUsed, 1) + " swap" : "RAM"
       warn: statsRow.memPercent >= 90
     }
     StatItem {
       glyph: "󰋊"
-      label: root.formatGiB(root.statsDiskUsed, 0) + "/" + root.formatGiB(root.statsDiskTotal, 0) + "G"
+      value: root.formatGiB(root.statsDiskUsed, 0) + "/" + root.formatGiB(root.statsDiskTotal, 0) + "G"
+      caption: "Disk"
       warn: statsRow.diskPercent >= 90
     }
     StatItem {
       visible: root.statsTemp >= 0
       glyph: "󰔏"
-      label: Math.round(root.statsTemp) + "°"
+      value: Math.round(root.statsTemp) + "°"
+      caption: "Temp"
       warn: root.statsTemp >= 90
     }
     StatItem {
       glyph: "󰅐"
-      label: root.formatUptime(root.statsUptime)
+      value: root.formatUptime(root.statsUptime)
+      caption: "Uptime"
     }
   }
 

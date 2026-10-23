@@ -1,0 +1,9 @@
+[Unit]
+Description=Suspend with the lid closed only when the battery is low
+
+[Service]
+ExecStart=%h/.local/bin/lid-battery-guard
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

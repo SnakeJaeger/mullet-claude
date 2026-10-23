@@ -44,8 +44,8 @@ hl.unbind("SUPER + SHIFT + S")        -- was: Google Maps
 -- Browsers and close.
 hl.unbind("SUPER + W")         -- was: Close window
 hl.unbind("SUPER + SHIFT + W") -- was: Omawrite
-o.bind("SUPER + W", "Zen", { launch = "zen-browser" })
-o.bind("SUPER + SHIFT + W", "Firefox", { launch = "firefox" })
+o.bind("SUPER + W", "Firefox", { launch = "firefox" })
+o.bind("SUPER + SHIFT + W", "Brave Origin", { launch = "brave-origin" })
 o.bind("SUPER + Q", "Close window", hl.dsp.window.close())
 
 -- SUPER+E is the dropdown file manager (see dropdowns.lua).
