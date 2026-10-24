@@ -1,0 +1,6 @@
+# Services on the lab box for the Go menu server card (~/.local/bin/server-status).
+# The host comes from the Remmina lab profile, like the lab card.
+# name | port | health path (any HTTP reply counts as up) | Nerd Font glyph
+Jellyfin | 8096 | /health | 󰎁
+Immich | 2283 | /api/server/ping | 󰋩
+Calendar | 5232 | / | 󰃭

@@ -33,3 +33,6 @@ require("default.hypr.toggles")
 
 -- Add any other personal Hyprland configuration below.
 -- o.window("qemu", { workspace = "5" })
+
+-- wdisplays (left click on the bar's monitor icon): float it centred.
+o.window("^network\\.cycles\\.wdisplays$", { tag = "+floating-window" })

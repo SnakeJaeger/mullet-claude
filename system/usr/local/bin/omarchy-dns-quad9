@@ -1,0 +1,58 @@
+#!/bin/bash
+# Quad9 DNS for the wifi popup's DNS row (daa.network), set up the way
+# omarchy-dns sets up its Cloudflare preset: NetworkManager global DNS,
+# per-connection DNS, systemd-resolved with DNS-over-TLS (opportunistic).
+# Fallback: Cloudflare, an independent provider.
+# Root-owned in /usr/local/bin. /etc/sudoers.d/omarchy-dns-quad9 lets the
+# user run exactly this file as root without a password (like Omarchy's rule
+# for omarchy-dns); without that rule it falls back to a pkexec prompt.
+# Undo: omarchy dns DHCP (or pick another provider in the popup).
+set -euo pipefail
+
+if (( EUID != 0 )); then
+  if sudo -n -l /usr/local/bin/omarchy-dns-quad9 >/dev/null 2>&1; then
+    exec sudo -n /usr/local/bin/omarchy-dns-quad9
+  fi
+  exec pkexec /usr/local/bin/omarchy-dns-quad9
+fi
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+
+NM_DNS_CONF=/etc/NetworkManager/conf.d/20-omarchy-dns.conf
+
+install -d -m 0755 "$(dirname "$NM_DNS_CONF")"
+cat >"$NM_DNS_CONF" <<'CONF'
+# Managed by omarchy-dns-quad9. Remove this file or run omarchy dns DHCP to use DHCP DNS again.
+[global-dns]
+
+[global-dns-domain-*]
+servers=9.9.9.9,149.112.112.112,2620:fe::fe,2620:fe::9
+CONF
+
+while IFS=: read -r uuid type; do
+  [[ -n $uuid ]] || continue
+  case "$type" in 802-11-wireless|802-3-ethernet) ;; *) continue ;; esac
+  nmcli connection modify "$uuid" \
+    ipv4.ignore-auto-dns yes ipv4.dns "9.9.9.9 149.112.112.112" \
+    ipv6.ignore-auto-dns yes ipv6.dns "2620:fe::fe 2620:fe::9" >/dev/null
+done < <(nmcli -t -f UUID,TYPE connection show)
+
+tee /etc/systemd/resolved.conf >/dev/null <<'CONF'
+[Resolve]
+DNS=9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net
+FallbackDNS=1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com 2606:4700:4700::1111#cloudflare-dns.com 2606:4700:4700::1001#cloudflare-dns.com
+DNSOverTLS=opportunistic
+CONF
+
+# Same reload order as omarchy-dns.
+if systemctl is-active --quiet NetworkManager.service; then
+  nmcli general reload conf >/dev/null 2>&1 || systemctl reload NetworkManager.service || true
+  while IFS=: read -r device type state; do
+    [[ -n $device && $state == connected ]] || continue
+    case "$type" in wifi|ethernet) nmcli device reapply "$device" >/dev/null 2>&1 || true ;; esac
+  done < <(nmcli -t -f DEVICE,TYPE,STATE device status)
+fi
+systemctl reload systemd-resolved.service 2>/dev/null || systemctl restart systemd-resolved.service
+if systemctl is-active --quiet NetworkManager.service; then
+  nmcli general reload dns-full >/dev/null 2>&1 || true
+fi
+echo Quad9

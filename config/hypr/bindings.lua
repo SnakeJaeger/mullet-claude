@@ -33,7 +33,7 @@ hl.unbind("SUPER + C")
 
 -- SUPER+T was: Toggle window floating/tiling
 hl.unbind("SUPER + T")
-o.bind("SUPER + SHIFT + T", "Kitty", { launch = "kitty" })
+o.bind("SUPER + SHIFT + T", "Alacritty", { launch = "alacritty" })
 
 -- Google web apps removed; drop their default shortcuts too.
 hl.unbind("SUPER + SHIFT + Y")        -- was: YouTube
@@ -109,3 +109,28 @@ for _, menu in ipairs(menu_keys) do
 end
 hl.unbind("XF86PowerOff")
 o.bind("XF86PowerOff", "Power menu", "~/.local/bin/menu-toggle system", { locked = true })
+
+-- Easter egg: SUPER + CTRL + ALT + SPACE opens the Go menu so hard it swings
+-- into the left edge, the hinge snaps and everything falls off the screen
+-- (daa.menu Menu.qml, eggAnim). Plain SUPER + SPACE is Omarchy's default.
+o.bind("SUPER + CTRL + ALT + SPACE", "Omarchy menu (easter egg)",
+  [[omarchy-shell shell toggle omarchy.menu '{"menu":"root","egg":true}']])
+
+-- Tap SUPER on its own: info bar (daa.infobar). Fires on release; a second
+-- tap hides it, otherwise it fades after 4 s.
+o.bind("SUPER + Super_L", "Info bar", "omarchy-shell -q daa.infobar toggle", { release = true })
+
+-- Brightness keys on ~/.local/bin/brightness-step's scale: 100% = raw 4054
+-- (the panel's full 4095 is a much brighter jump, kept for SHIFT + up only),
+-- 2% steps between 90 and 100, 5% below.
+for _, key in ipairs({ "XF86MonBrightnessUp", "XF86MonBrightnessDown",
+  "SHIFT + XF86MonBrightnessUp", "SHIFT + XF86MonBrightnessDown",
+  "ALT + XF86MonBrightnessUp", "ALT + XF86MonBrightnessDown" }) do
+  hl.unbind(key)
+end
+o.bind("XF86MonBrightnessUp", "Brightness up", "brightness-step up", { locked = true, repeating = true })
+o.bind("XF86MonBrightnessDown", "Brightness down", "brightness-step down", { locked = true, repeating = true })
+o.bind("SHIFT + XF86MonBrightnessUp", "Brightness boost (panel maximum)", "brightness-step boost", { locked = true })
+o.bind("SHIFT + XF86MonBrightnessDown", "Brightness minimum", "brightness-step min", { locked = true })
+o.bind("ALT + XF86MonBrightnessUp", "Brightness up precise", "brightness-step +1", { locked = true, repeating = true })
+o.bind("ALT + XF86MonBrightnessDown", "Brightness down precise", "brightness-step -1", { locked = true, repeating = true })

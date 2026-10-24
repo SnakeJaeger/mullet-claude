@@ -38,7 +38,23 @@ BarWidget {
     }
     return tiles
   }
-  readonly property bool flyoutOpen: !vertical && revealInactiveIndicators && flyoutTiles.length > 0
+  // On the desktop bar these toggles live in the sound, screen and calendar
+  // panels (daa.audio, daa.monitor, daa.clock), which find them through the
+  // bar window's indicatorTiles; the clock-hover flyout stays shut there.
+  // Bars without that property (the tablet bar) keep the flyout.
+  readonly property var barWindow: root.QsWindow.window
+  readonly property bool tilesElsewhere: !!barWindow && "indicatorTiles" in barWindow
+  readonly property var sharedTiles: flyoutTiles.map(function(tile) {
+    return { id: tile.id, item: tile.item, label: flyoutLabels[tile.id] || tile.id }
+  })
+  readonly property bool flyoutOpen: !vertical && !tilesElsewhere && revealInactiveIndicators && flyoutTiles.length > 0
+
+  Binding {
+    when: root.tilesElsewhere && !root.vertical
+    target: root.barWindow
+    property: "indicatorTiles"
+    value: root.sharedTiles
+  }
 
   function registerFlyoutItem(id, item) {
     if (!id || flyoutItems[id] === item) return

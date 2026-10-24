@@ -28,7 +28,7 @@ Item {
   readonly property bool labUp: !!status && status.lab !== null
   readonly property var latest: samples.length ? samples[samples.length - 1] : null
 
-  implicitHeight: Style.space(96)
+  implicitHeight: Style.space(110)
 
   function record(json) {
     var next
@@ -109,10 +109,10 @@ Item {
       }
     }
 
-    // Ping sparkline, captioned with what it's measuring.
+    // Ping sparkline, captioned below with what it's measuring.
     Item {
       width: parent.width
-      height: Style.space(30)
+      height: Style.space(26)
 
       Canvas {
         id: spark
@@ -128,8 +128,10 @@ Item {
           ctx.reset()
           var pts = points || []
           if (pts.length < 2) return
-          var max = 1
-          for (var i = 0; i < pts.length; i++) if (pts[i] !== null && pts[i] > max) max = pts[i]
+          // Scaled against at least 80 ms, so a steady low latency rides low
+          // instead of filling the box; spikes still reach the top.
+          var max = 80
+          for (var i = 0; i < pts.length; i++) if (pts[i] !== null && pts[i] * 1.2 > max) max = pts[i] * 1.2
           var step = width / 29
           var x0 = width - (pts.length - 1) * step
           var top = 3, bottom = height - 3
@@ -156,9 +158,16 @@ Item {
         }
       }
 
+    }
+
+    // Its own line, so the trace never runs over it.
+    Item {
+      width: parent.width
+      height: Style.font.bodySmall + Style.space(2)
+
       Text {
         anchors.right: parent.right
-        anchors.bottom: parent.bottom
+        anchors.verticalCenter: parent.verticalCenter
         visible: card.target === "inet"
         text: "internet " + (card.latest !== null ? Math.round(card.latest) + " ms" : "down")
         color: card.foreground

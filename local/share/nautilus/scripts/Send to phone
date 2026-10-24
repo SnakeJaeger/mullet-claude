@@ -1,0 +1,14 @@
+#!/bin/bash
+# Nautilus right-click → Scripts → Send to phone: shares the selected files
+# with the paired KDE Connect device (same one the Go menu phone card shows).
+id=$(kdeconnect-cli -a --id-only 2>/dev/null | head -1)
+if [[ -z $id ]]; then
+  notify-send -i phone "Send to phone" "No paired phone in reach"
+  exit 1
+fi
+n=0
+while IFS= read -r f; do
+  [[ -n $f ]] || continue
+  kdeconnect-cli -d "$id" --share "$f" && n=$((n + 1))
+done <<<"$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+notify-send -i phone "Send to phone" "Sent $n file(s)"

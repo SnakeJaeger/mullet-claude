@@ -1,0 +1,4 @@
+# Lets YOUR_USER switch DNS to Quad9 from the wifi popup without a password.
+# Only this root-owned script; see /usr/local/bin/omarchy-dns-quad9.
+# Install with: sudo install -m 0440 omarchy-dns-quad9 /etc/sudoers.d/ (after visudo -cf)
+YOUR_USER ALL=(root) NOPASSWD: /usr/local/bin/omarchy-dns-quad9

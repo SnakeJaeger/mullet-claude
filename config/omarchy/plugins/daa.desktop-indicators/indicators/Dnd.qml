@@ -1,11 +1,29 @@
 import QtQuick
+import Quickshell
 import qs.Commons
 import qs.Ui
 
 FlyoutIndicator {
   id: root
 
-  readonly property var notificationService: bar?.shell?.firstPartyServiceFor("omarchy.notifications")
+  // Looked up until found (and again if it goes away): a one-time binding
+  // stayed null when this indicator was created before the service, and the
+  // panel chip then did nothing.
+  property var notificationService: null
+
+  function resolveService() {
+    if (!root.notificationService && root.bar && root.bar.shell)
+      root.notificationService = root.bar.shell.firstPartyServiceFor("omarchy.notifications")
+    return root.notificationService
+  }
+
+  Timer {
+    interval: 1000
+    repeat: true
+    triggeredOnStart: true
+    running: !root.notificationService
+    onTriggered: root.resolveService()
+  }
   readonly property bool dnd: notificationService ? notificationService.doNotDisturb : false
 
   active: dnd
@@ -15,8 +33,8 @@ FlyoutIndicator {
   inactiveTooltipText: "Silence Notifications"
 
   onPressed: function() {
-    if (root.notificationService) {
-      root.notificationService.setDoNotDisturb(!root.notificationService.doNotDisturb)
-    }
+    var service = root.resolveService()
+    if (service) service.setDoNotDisturb(!service.doNotDisturb)
+    else Quickshell.execDetached(["omarchy", "toggle", "notification", "silencing"])
   }
 }

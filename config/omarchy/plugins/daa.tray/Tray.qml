@@ -12,7 +12,14 @@ BarWidget {
   id: root
   moduleName: "omarchy.tray"
 
-  property bool expanded: false
+  // Hovering the drawer peeks; a left click on the arrow keeps it open until
+  // clicked again (the arrow flips to point back). The tablet bar (its api has
+  // hoverCleared) ignores hover, since touch leaves it stuck on: there a tap
+  // opens the drawer and the next tap, or a tap on the wallpaper, folds it.
+  property bool drawerHovered: false
+  property bool keepOpen: false
+  readonly property bool touchBar: !!bar && "hoverCleared" in bar
+  readonly property bool expanded: keepOpen || (drawerHovered && !touchBar)
   property bool managePopupOpen: false
   property bool trayMenuOpen: false
   property var activeTrayItem: null
@@ -248,7 +255,7 @@ BarWidget {
         visible: root.allItems.length > 0
 
         HoverHandler {
-          onHoveredChanged: root.expanded = hovered
+          onHoveredChanged: root.drawerHovered = hovered
         }
 
         BarIconButton {
@@ -257,9 +264,10 @@ BarWidget {
           width: implicitWidth
           height: implicitHeight
           x: 0
-          text: "\uf053"
+          text: root.keepOpen ? "\uf054" : "\uf053"
           onPressed: function(button) {
             if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            else if (button === Qt.LeftButton) root.keepOpen = !root.keepOpen
           }
         }
 
@@ -330,7 +338,7 @@ BarWidget {
         visible: root.allItems.length > 0
 
         HoverHandler {
-          onHoveredChanged: root.expanded = hovered
+          onHoveredChanged: root.drawerHovered = hovered
         }
 
         BarIconButton {
@@ -339,10 +347,11 @@ BarWidget {
           width: implicitWidth
           height: implicitHeight
           y: root.drawerExtent - root.revealExtent
-          text: "\uf053"
+          text: root.keepOpen ? "\uf054" : "\uf053"
           textRotation: 90
           onPressed: function(button) {
             if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            else if (button === Qt.LeftButton) root.keepOpen = !root.keepOpen
           }
         }
 

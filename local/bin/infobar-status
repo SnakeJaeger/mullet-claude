@@ -1,0 +1,48 @@
+#!/bin/bash
+# JSON snapshot for the info bar (daa.infobar, Super tap): workspaces and the
+# app classes on them, wifi/ethernet, bluetooth, battery and weather.
+# Weather comes from wttr.in for the location saved with
+# `omarchy-weather-location --set` (by IP it followed the Mullvad exit
+# server), cached for 30 min and refreshed in the background so this always
+# answers at once. A location change invalidates the cache.
+
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/infobar-weather"
+LOC_FILE="$HOME/.local/state/omarchy/settings/weather.json"
+
+place=$(jq -r '.name // ""' "$LOC_FILE" 2>/dev/null)
+query=$(jq -r 'if .latitude and .longitude then "\(.latitude),\(.longitude)" else (.name // "") end' "$LOC_FILE" 2>/dev/null)
+
+if [[ ! -s $CACHE || -n $(find "$CACHE" -mmin +30 2>/dev/null) || $(head -1 "$CACHE") != "$query" ]]; then
+  (
+    w=$(curl -fsS --max-time 6 "https://wttr.in/${query// /+}?format=%C|%t|%S|%s" 2>/dev/null)
+    [[ $w == *"|"* ]] && printf '%s\n%s\n' "$query" "$w" > "$CACHE"
+  ) >/dev/null 2>&1 &
+  disown
+fi
+weather=$(sed -n 2p "$CACHE" 2>/dev/null)
+
+wifi=$(nmcli -t -f TYPE,STATE,CONNECTION dev 2>/dev/null | awk -F: '$1 == "wifi" && $2 == "connected" { print $3; exit }')
+ethernet=$(nmcli -t -f TYPE,STATE dev 2>/dev/null | awk -F: '$1 == "ethernet" && $2 == "connected" { print "yes"; exit }')
+bt_powered=$(bluetoothctl show 2>/dev/null | awk '/Powered:/ { print $2; exit }')
+bt_connected=$(bluetoothctl devices Connected 2>/dev/null | cut -d' ' -f3- | jq -Rsc 'split("\n") | map(select(length > 0))')
+
+bat=$(upower -i "$(upower -e | grep -m1 BAT)" 2>/dev/null)
+percent=$(awk '/percentage:/ { gsub("%", "", $2); print int($2); exit }' <<<"$bat")
+state=$(awk '/state:/ { print $2; exit }' <<<"$bat")
+
+jq -n \
+  --argjson active "$(hyprctl activeworkspace -j | jq '.id')" \
+  --argjson workspaces "$(hyprctl workspaces -j | jq '[.[] | select(.id > 0) | {id, name, windows}] | sort_by(.id)')" \
+  --argjson clients "$(hyprctl clients -j | jq '[.[] | select(.workspace.id > 0 and .mapped) | {ws: .workspace.id, class}]')" \
+  --arg wifi "$wifi" --arg ethernet "$ethernet" \
+  --arg bt "$bt_powered" --argjson btConnected "${bt_connected:-[]}" \
+  --arg percent "$percent" --arg state "$state" \
+  --arg weather "$weather" --arg place "$place" \
+  '{
+    active: $active,
+    workspaces: [$workspaces[] | . as $w | $w + { classes: ([$clients[] | select(.ws == $w.id) | .class] | unique) }],
+    wifi: $wifi, ethernet: ($ethernet == "yes"),
+    bluetooth: { powered: ($bt == "yes"), connected: $btConnected },
+    battery: { percent: (($percent | tonumber?) // -1), state: $state },
+    weather: ($weather | split("|") | if length >= 4 then { condition: .[0], temp: .[1], sunrise: .[2], sunset: .[3], place: $place } else null end)
+  }'

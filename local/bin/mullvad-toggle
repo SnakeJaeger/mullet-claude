@@ -1,0 +1,10 @@
+#!/bin/bash
+# Go menu Mullvad button: connect / disconnect Mullvad.
+# Not logged in yet → open the Mullvad app to sign in.
+if mullvad account get 2>/dev/null | grep -q "Not logged in"; then
+  exec hyprctl eval 'dropdown_show("mullvad")'
+fi
+case $(mullvad status | head -1) in
+  Connected*|Connecting*) mullvad disconnect ;;
+  *) mullvad connect ;;
+esac

@@ -1,0 +1,121 @@
+#!/bin/bash
+# Power profiles with a refresh rate attached. power-profiles-daemon only has
+# power-saver / balanced / performance; "less-balanced" is balanced at 120 Hz
+# with adaptive sync (VRR), so the panel drops toward 48 Hz while idle.
+#
+#   power-saver     60 Hz
+#   balanced        60 Hz
+#   less-balanced   balanced profile, 120 Hz + VRR
+#   performance    120 Hz fixed
+#
+# The ppd profile stays the source of truth (Omarchy's menu, the stock battery
+# service and powerprofilesctl keep working); the refresh rate follows it. For
+# balanced, which rate is remembered per power source like Omarchy remembers
+# the profile.
+#
+#   power-refresh list [--active-state]   profiles incl. less-balanced
+#   power-refresh set <profile>           pick one (remembered for AC/battery)
+#   power-refresh apply                   set the rate the profile calls for
+#   power-refresh mode                    Hyprland mode string for the laptop panel
+#   power-refresh watch                   apply on profile / AC changes (autostart)
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/power-refresh"
+mkdir -p "$STATE_DIR"
+
+source_now() {
+  if [[ $(busctl get-property org.freedesktop.UPower /org/freedesktop/UPower org.freedesktop.UPower OnBattery 2>/dev/null) == "b true" ]]; then
+    echo battery
+  else
+    echo ac
+  fi
+}
+
+balanced_hz() {
+  local f="$STATE_DIR/balanced-$(source_now)"
+  [[ -r $f ]] && cat "$f" || echo 60
+}
+
+wanted_hz() {
+  case $(powerprofilesctl get 2>/dev/null) in
+    performance) echo 120 ;;
+    balanced) balanced_hz ;;
+    *) echo 60 ;;
+  esac
+}
+
+# Only less-balanced (balanced at 120 Hz) runs adaptive sync.
+wanted_vrr() {
+  [[ $(powerprofilesctl get 2>/dev/null) == balanced && $(balanced_hz) == 120 ]] && echo 1 || echo 0
+}
+
+# monitors.lua reads these at startup, tablet-mode when rotating.
+mode_for() { [[ $1 == 120 ]] && echo highrr || echo preferred; }
+
+apply() {
+  local hz vrr output current transform current_vrr
+  hz=$(wanted_hz)
+  vrr=$(wanted_vrr)
+  echo "$hz" > "$STATE_DIR/hz"
+  echo "$vrr" > "$STATE_DIR/vrr"
+  output=$(omarchy-hyprland-monitor-laptop 2>/dev/null) || return
+  read -r current transform current_vrr < <(hyprctl monitors -j | jq -r --arg o "$output" '.[] | select(.name == $o) | "\(.refreshRate | round) \(.transform) \(if .vrr then 1 else 0 end)"')
+  [[ -z $current ]] && return
+  # Per-monitor vrr is ignored by this Hyprland; the misc setting works.
+  [[ $current_vrr != "$vrr" ]] && hyprctl eval "hl.config({ misc = { vrr = $vrr } })" >/dev/null
+  [[ $current == "$hz" ]] && return
+  # Same call as tablet-mode's rotate_to, so rotation is kept.
+  hyprctl eval "hl.monitor({ output = \"$output\", mode = \"$(mode_for "$hz")\", position = \"auto\", scale = \"auto\", transform = ${transform:-0} })" >/dev/null
+}
+
+list() {
+  local with_state=${1:-} active p
+  active=$(powerprofilesctl get 2>/dev/null)
+  [[ $active == balanced && $(balanced_hz) == 120 ]] && active=less-balanced
+  print() {
+    if [[ -n $with_state ]]; then
+      printf '%s\t%s\n' "$1" "$([[ $1 == "$active" ]] && echo 1 || echo 0)"
+    else
+      echo "$1"
+    fi
+  }
+  omarchy-powerprofiles-list | while read -r p; do
+    [[ -z $p ]] && continue
+    print "$p"
+    [[ $p == balanced ]] && print less-balanced
+  done
+}
+
+set_profile() {
+  local profile=$1 src
+  src=$(source_now)
+  case $profile in
+    less-balanced) echo 120 > "$STATE_DIR/balanced-$src"; profile=balanced ;;
+    balanced) echo 60 > "$STATE_DIR/balanced-$src" ;;
+  esac
+  omarchy-powerprofiles-set "$src" "$profile" || exit
+  apply
+}
+
+watch() {
+  # One watcher only: a second one exits.
+  exec 9>"$STATE_DIR/watch.lock"
+  flock -n 9 || exit 0
+  apply
+  {
+    gdbus monitor --system --dest org.freedesktop.UPower.PowerProfiles --object-path /org/freedesktop/UPower/PowerProfiles &
+    gdbus monitor --system --dest org.freedesktop.UPower --object-path /org/freedesktop/UPower &
+    wait
+  } | grep --line-buffered -E "ActiveProfile|OnBattery" | while read -r _; do
+    sleep 0.3
+    apply
+  done
+}
+
+case ${1:-} in
+  list) list "${2:-}" ;;
+  set) [[ -n ${2:-} ]] || { echo "usage: power-refresh set <profile>" >&2; exit 1; }; set_profile "$2" ;;
+  apply) apply ;;
+  mode) [[ -r $STATE_DIR/hz ]] && mode_for "$(cat "$STATE_DIR/hz")" || mode_for 60 ;;
+  watch) watch ;;
+  *) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+esac

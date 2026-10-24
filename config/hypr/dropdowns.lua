@@ -15,9 +15,9 @@
 -- preload = true launches the app hidden at login so the first press is instant.
 local dropdowns = {
   -- Geometry copied from where it was hand-placed (119x35 cells at font 10)
-  { key = "SUPER + T", name = "terminal", title = "Dropdown terminal", cmd = "kitty --class=dropdown.terminal -o font_size=10 -o env=DROPDOWN_TERMINAL=1", px = { 990, 667 }, y = -22, preload = true },
-  { key = "SUPER + C", name = "claude", title = "Dropdown Claude Code", cmd = "kitty --class=dropdown.claude claude", preload = true },
-  { key = "SUPER + I", name = "btop", title = "Dropdown btop", cmd = "kitty --class=dropdown.btop btop", preload = true },
+  { key = "SUPER + T", name = "terminal", title = "Dropdown terminal", cmd = [[alacritty --class dropdown.terminal -o font.size=10 -o 'env.DROPDOWN_TERMINAL="1"']], px = { 990, 667 }, y = -22, preload = true },
+  { key = "SUPER + C", name = "claude", title = "Dropdown Claude Code", cmd = "alacritty --class dropdown.claude -e claude", preload = true },
+  { key = "SUPER + I", name = "btop", title = "Dropdown btop", cmd = "alacritty --class dropdown.btop -e btop", preload = true },
   -- Nautilus can't set its own class, so `match` claims the next window of
   -- that class instead (see below).
   { key = "SUPER + E", name = "files", title = "Dropdown files", cmd = "nautilus --new-window", match = "org.gnome.Nautilus", preload = true },
@@ -26,8 +26,11 @@ local dropdowns = {
   { key = "SUPER + D", name = "search", title = "Dropdown file search", cmd = "env GTK_THEME=Omarchy-Catfish catfish --path=/", match = "catfish", px = { 1000, 700 }, preload = true },
   -- Hangs off the upper right corner and slides in from the right.
   { key = "SUPER + P", name = "bitwarden", title = "Dropdown Bitwarden", cmd = "bitwarden-desktop", match = "Bitwarden", px = { 819, 713 }, right = 10, slide = "slide", preload = true },
-  -- Example of `rise`: comes up from the bottom and rests a third of the way up.
-  -- { key = "SUPER + M", name = "vpn", title = "Dropdown VPN", cmd = "mullvad-vpn", match = "mullvad-vpn", px = { 320, 568 }, rise = 1 / 3, preload = true },
+  -- Hangs under the bar's weather button; clicking the button toggles it.
+  { key = "SUPER + ALT + W", name = "weather", title = "Dropdown weather", cmd = "gnome-weather", match = "org.gnome.Weather", px = { 840, 620 }, preload = true },
+  -- Rises from the bottom and rests a third of the way up. Mullvad's window is
+  -- a fixed 320x568.
+  { key = "SUPER + M", name = "mullvad", title = "Dropdown Mullvad VPN", cmd = "mullvad-vpn", match = "mullvad-vpn", px = { 320, 568 }, rise = 1 / 3, preload = true },
 }
 
 -- Bitwarden reloads its window and asks for focus every time the vault locks;
@@ -126,6 +129,12 @@ local function rise_toggle(dropdown)
 end
 
 local function toggle_special(dropdown)
+  -- Summoning beats an open bar panel (scratchpads.lua closes it).
+  local monitor = hl.get_active_monitor()
+  local shown = monitor and monitor.active_special_workspace
+  if scratchpad_summoned and not (shown and shown.name == "special:dropdown-" .. dropdown.name) then
+    scratchpad_summoned("special:dropdown-" .. dropdown.name)
+  end
   if dropdown.rise then return rise_toggle(dropdown) end
   slide_style(dropdown)
   hl.dispatch(hl.dsp.workspace.toggle_special("dropdown-" .. dropdown.name))

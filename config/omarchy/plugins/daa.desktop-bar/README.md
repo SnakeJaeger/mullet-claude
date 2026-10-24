@@ -56,12 +56,12 @@ Example `shell.json` (bar subtree only shown):
 |---|---|---|
 | `omarchy.menu` | Omarchy menu launcher | left = menu · right = terminal |
 | `omarchy.workspaces` | Hyprland workspace switcher | left = focus workspace |
-| `omarchy.clock` | Date/time label + popup with a month grid, ISO week numbers, and month stepping | left = popup · right = cycle label format · middle = timezone selector |
+| `daa.clock` | Date/time label (clone of omarchy.clock; Reminder chip in the popup) + popup with a month grid, ISO week numbers, and month stepping | hover or left = popup · right = cycle label format · middle = timezone selector |
 | `omarchy.media` | MPRIS now-playing — scrolling track + artist, cover-art popup | left = play/pause · middle = next · scroll = prev/next · right = popup |
 | `omarchy.indicators` | Manual state indicators | left = indicator action |
 | `omarchy.system-update` | Available update indicator | left = update |
-| `omarchy.tray` | System tray | hover = reveal drawer · right on chevron = manage |
-| `omarchy.weather` | Weather icon + popup with forecast | left = popup · right = full notification |
+| `daa.tray` | System tray (clone of omarchy.tray) | hover = peek drawer · left on chevron = keep open (chevron flips) · right on chevron = manage |
+| `daa.weather` | Weather icon (clone of omarchy.weather) | hover = forecast popup · left = GNOME Weather dropdown · middle = refresh · right = full notification |
 | `omarchy.microphone` | Mic icon + scroll volume | left = mute toggle · middle = audio panel · scroll = source volume |
 
 | `omarchy.audio` | Volume icon + popup with master slider, output-device picker, per-app mixer | left = popup · right = mute · middle = popup · scroll = volume |
@@ -71,6 +71,19 @@ Example `shell.json` (bar subtree only shown):
 | `omarchy.power` | Battery/AC icon + popup with battery stats, power profiles, and system info | left = popup · right = toggle percentage |
 | `omarchy.bluetooth` | Bluetooth icon + popup with device list, connect/disconnect, battery | left = popup · right = toggle radio |
 | `omarchy.monitor` | Brightness and laptop display controls | left = popup |
+
+### daa desktop-bar extras (2026-10-23)
+
+- **Hover = click** for `root.hoverOpenIds` (agents, bluetooth, network,
+  daa.audio, daa.monitor, power, daa.clock, daa.weather): resting 200 ms opens
+  the panel. While a panel is open it covers the bar, so the bar polls
+  `hyprctl cursorpos` (120 ms, only then) to keep hover-switching between them.
+- Indicator toggles live in the panels, not a clock-hover flyout:
+  daa.desktop-indicators shares its indicator instances through the bar
+  window's `indicatorTiles`; `PanelToggles.qml` draws them as chips in the
+  sound (DND, Dictation), display (Night light, Stay awake, Recording) and
+  calendar (Reminder) panels.
+- Quick launch and system stats moved into the Go menu (daa.menu).
 
 The `omarchy.indicators` widget loads individual bar indicators from `indicators/`. Omit `items` (or set it to an empty array) to show all indicators in the default order, or set `items` to a subset such as `["Dnd", "Reminder", "NightLight"]`. Set `alwaysShow` to `true` to keep inactive indicators visible instead of revealing them only on hover. Multiple `omarchy.indicators` instances are allowed, so different sections can show different subsets.
 

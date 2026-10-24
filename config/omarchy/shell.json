@@ -1,6 +1,6 @@
 {
   "bar": {
-    "centerAnchor": "omarchy.clock",
+    "centerAnchor": "daa.clock",
     "id": "daa.desktop-bar",
     "layout": {
       "app": [],
@@ -8,14 +8,14 @@
         {
           "format": "dddd HH:mm",
           "formatAlt": "d MMMM 'W'ww yyyy",
-          "id": "omarchy.clock",
+          "id": "daa.clock",
           "verticalFormat": "HH\n—\nmm"
         },
         {
           "id": "omarchy.keyboard-layout"
         },
         {
-          "id": "omarchy.weather"
+          "id": "daa.weather"
         },
         {
           "id": "omarchy.system-update"
@@ -37,22 +37,22 @@
           "id": "daa.tray"
         },
         {
-          "id": "omarchy.agents"
+          "id": "daa.agents"
         },
         {
           "id": "omarchy.bluetooth"
         },
         {
-          "id": "omarchy.network"
+          "id": "daa.network"
         },
         {
-          "id": "omarchy.audio"
+          "id": "daa.audio"
         },
         {
-          "id": "omarchy.monitor"
+          "id": "daa.monitor"
         },
         {
-          "id": "omarchy.power"
+          "id": "daa.power"
         }
       ]
     },
@@ -125,6 +125,9 @@
     },
     {
       "id": "daa.polkit"
+    },
+    {
+      "id": "daa.infobar"
     }
   ],
   "version": 1

@@ -1,0 +1,42 @@
+#!/bin/bash
+# Go menu server card (daa.menu/ServerCard.qml): one JSON line with the state
+# of each lab-box service listed in ~/.config/lab-services/services.
+#   {"host":true,"services":[{"name":"Jellyfin","icon":"…","url":"http://…:8096","up":true}, …]}
+# The lab address comes from the Remmina profile (same as lab-status), so
+# nothing here names the box. `server-status open <name>` opens that
+# service's web page.
+# Set LAB_PROFILE to your own Remmina profile for the lab box.
+PROFILE="${LAB_PROFILE:-$HOME/.local/share/remmina/lab.remmina}"
+LIST="$HOME/.config/lab-services/services"
+host=$(sed -n 's/^server=//p' "$PROFILE" 2>/dev/null | head -1)
+host=${host%%:*}
+
+services() { grep -v '^\s*#' "$LIST" 2>/dev/null | grep '|'; }
+field() { cut -d'|' -f"$2" <<<"$1" | sed 's/^ *//; s/ *$//'; }
+
+if [[ $1 == open ]]; then
+  while IFS= read -r line; do
+    [[ $(field "$line" 1) == "$2" ]] && exec xdg-open "http://$host:$(field "$line" 2)"
+  done < <(services)
+  exit 1
+fi
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+i=0
+while IFS= read -r line; do
+  port=$(field "$line" 2); path=$(field "$line" 3)
+  { [[ -n $host ]] && curl -s -o /dev/null -m 1.5 -w '%{http_code}' "http://$host:$port$path" >"$tmp/$i"; } &
+  i=$((i + 1))
+done < <(services)
+wait
+
+i=0
+while IFS= read -r line; do
+  code=$(cat "$tmp/$i" 2>/dev/null)
+  up=false; [[ -n $code && $code != 000 ]] && up=true
+  jq -cn --arg name "$(field "$line" 1)" --arg icon "$(field "$line" 4)" \
+    --arg url "http://$host:$(field "$line" 2)" --argjson up "$up" \
+    '{name: $name, icon: $icon, url: $url, up: $up}'
+  i=$((i + 1))
+done < <(services) | jq -cs --argjson host "$([[ -n $host ]] && echo true || echo false)" '{host: $host, services: .}'

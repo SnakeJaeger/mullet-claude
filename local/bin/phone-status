@@ -1,0 +1,69 @@
+#!/bin/bash
+# KDE Connect status for the Go menu phone card (daa.menu/PhoneCard.qml), as
+# one JSON line: the first paired device (reachable ones first), or null,
+# read from the daemon over D-Bus.
+#   {"device":{"id":"…","name":"Pixel","reachable":true,"battery":85,"charging":false},"known":1}
+# `phone-status <action>` runs an action on that device: ring, clipboard,
+# browse (mount its storage and open it in Files), settings (pair / configure).
+
+set -o pipefail
+
+dev() {
+  busctl --user get-property org.kde.kdeconnect "/modules/kdeconnect/devices/$1" \
+    org.kde.kdeconnect.device "$2" 2>/dev/null | cut -d' ' -f2-
+}
+
+# "id<TAB>name<TAB>reachable" for the first paired device, reachable ones first.
+# D-Bus, not kdeconnect-cli -l, which waits ~2s on network discovery.
+device_line() {
+  local ids id paired reach name
+  ids=$(busctl --user call org.kde.kdeconnect /modules/kdeconnect org.kde.kdeconnect.daemon \
+    devices bb false true 2>/dev/null | tr -d '"' | cut -d' ' -f3-)
+  for id in $ids; do
+    paired=$(dev "$id" isPaired)
+    [[ $paired == true ]] || continue
+    reach=$(dev "$id" isReachable)
+    name=$(dev "$id" name); name=${name#\"}; name=${name%\"}
+    printf '%d\t%s\t%s\t%s\n' "$([[ $reach == true ]] && echo 0 || echo 1)" "$id" "$name" "$reach"
+  done | sort -n | head -1 | cut -f2-
+}
+
+prop() {
+  busctl --user get-property org.kde.kdeconnect "/modules/kdeconnect/devices/$1/battery" \
+    org.kde.kdeconnect.device.battery "$2" 2>/dev/null | awk '{ print $2 }'
+}
+
+IFS=$'\t' read -r id name reach <<<"$(device_line)"
+
+case "${1:-}" in
+  ring) [[ -n $id ]] && kdeconnect-cli -d "$id" --ring ;;
+  clipboard) [[ -n $id ]] && kdeconnect-cli -d "$id" --send-clipboard ;;
+  browse)
+    [[ -n $id ]] || exit 1
+    kdeconnect-cli -d "$id" --mount
+    for _ in 1 2 3 4 5 6; do
+      mp=$(kdeconnect-cli -d "$id" --get-mount-point 2>/dev/null)
+      [[ -n $mp && -d $mp ]] && break
+      sleep 0.5
+    done
+    [[ -n $mp ]] && uwsm-app -- nautilus --new-window "$mp"
+    ;;
+  settings) uwsm-app -- kdeconnect-app ;;
+  "")
+    known=$(busctl --user call org.kde.kdeconnect /modules/kdeconnect org.kde.kdeconnect.daemon \
+      devices bb false false 2>/dev/null | awk '{ print $2 + 0 }')
+    [[ $known =~ ^[0-9]+$ ]] || known=0
+    if [[ -z $id ]]; then
+      printf '{"device":null,"known":%d}\n' "$known"
+      exit 0
+    fi
+    reachable=false; [[ $reach == true ]] && reachable=true
+    battery=$(prop "$id" charge); charging=$(prop "$id" isCharging)
+    [[ $battery =~ ^-?[0-9]+$ ]] || battery=null
+    [[ $charging == true || $charging == false ]] || charging=null
+    name=${name//\\/\\\\}; name=${name//\"/\\\"}
+    printf '{"device":{"id":"%s","name":"%s","reachable":%s,"battery":%s,"charging":%s},"known":%d}\n' \
+      "$id" "$name" "$reachable" "$battery" "$charging" "$known"
+    ;;
+  *) echo "usage: phone-status [ring|clipboard|browse|settings]" >&2; exit 2 ;;
+esac

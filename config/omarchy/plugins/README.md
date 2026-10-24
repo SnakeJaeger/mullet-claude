@@ -9,12 +9,12 @@ which swaps the desktop bar for the tablet bar and back.
 ### Desktop only — `daa.desktop-*`
 | Plugin | What it is |
 |---|---|
-| `daa.desktop-bar` | Desktop bar (islands; hover cards: quick-launch under the left island, stats under the right) |
+| `daa.desktop-bar` | Desktop bar (islands; status icons, clock and weather open their panels on hover; app island window list) |
 | `daa.desktop-arch-menu` | Arch logo button → Go menu |
 | `daa.desktop-workspaces` | Workspace dots |
 | `daa.desktop-app-name` | Focused-app island next to the workspaces |
 | `daa.desktop-media` | Now-playing island (only while playing) |
-| `daa.desktop-indicators` | Clock island indicators + drop-down toggle panel |
+| `daa.desktop-indicators` | Clock island indicators (active ones beside the clock); shares its toggles with the sound / display / calendar panels via PanelToggles.qml; the tablet bar keeps the clock drop-down |
 
 ### Tablet only — `daa.tablet-*`
 | Plugin | What it is |
@@ -32,18 +32,24 @@ which swaps the desktop bar for the tablet bar and back.
 ### Shared — plain `daa.*` (behave differently in tablet mode)
 | Plugin | What it is |
 |---|---|
-| `daa.menu` | All menus (Go menu, tablet menu, quick toggles…); Go menu's Apps / Tablet / System bottom row stays in every Go submenu (hidden while searching); typing in the root menu adds a "Search all files" row (→ ~/.local/bin/file-search → Catfish dropdown); system (shutdown) menu is borderless, bottom-left, slides in from the left; menu keys go through ~/.local/bin/menu-toggle (re-press closes, other key switches); SUPER+K keybindings list is borderless, 600x720, top-left (10px in, 50px down), slides in from the left |
+| `daa.menu` | All menus (Go menu — Go menu: system (StatsCard.qml) / lab / server (ServerCard.qml: Jellyfin, Immich, calendar from ~/.config/lab-services/services via ~/.local/bin/server-status) / phone (PhoneCard.qml, KDE Connect via ~/.local/bin/phone-status) cards on the right that slide into the right wall and bounce; Apps / Terminal / Keys / Tablet / System footer dealt out like a card spread; the menu swings down from the Arch button —, tablet menu, quick toggles…); Go menu's Apps / Tablet / System bottom row stays in every Go submenu (hidden while searching); typing in the root menu adds a "Search all files" row (→ ~/.local/bin/file-search → Catfish dropdown); system (shutdown) menu is borderless, bottom-left, slides in from the left; menu keys go through ~/.local/bin/menu-toggle (re-press closes, other key switches); SUPER+K keybindings list is borderless, 600x720, top-left (10px in, 50px down), slides in from the left |
 | `daa.clipboard` | Clipboard manager (SUPER+V, SUPER+CTRL+V), borderless, bottom-right, slides in from the right; header Clear button (= Shift+Delete, asks first) |
 | `daa.launcher` | App launcher: search + Web/Utility/Create/Communicate/Entertain tabs (scroll rail in tablet mode) |
 | `daa.osd` | On-screen display |
 | `daa.background` | Wallpaper (tap = dismiss in tablet mode) |
-| `daa.tray` | System tray, clone of omarchy.tray: the collapsed drawer takes no width (stock reserved a gap for every hidden icon); both BarModel.js files treat it as the tray |
+| `daa.tray` | System tray, clone of omarchy.tray: the collapsed drawer takes no width; click the arrow to keep the drawer open (tablet bar: tap-only, wallpaper tap folds it); both BarModel.js files treat it as the tray |
 | `daa.polkit` | Password (polkit) dialog, clone of omarchy.polkit: rises from the bottom, rests with its centre 1/3 up, drops on close |
+| `daa.audio` | Sound panel, clone of omarchy.audio: + Do not disturb / Dictation chips |
+| `daa.monitor` | Display panel, clone of omarchy.monitor: + Night light / Stay awake / Recording chips |
+| `daa.clock` | Clock + calendar, clone of omarchy.clock: + Reminder chip; shell.json centerAnchor is daa.clock |
+| `daa.weather` | Bar weather button, clone of omarchy.weather: left click toggles the GNOME Weather dropdown (SUPER+ALT+W, hypr/dropdowns.lua) instead of the popup; SUPER+CTRL+ALT+W still opens the popup |
+| `daa.lock` | Lock screen, clone of omarchy.lock: adds the Mullet Claude outline avatar (avatar.png) above the password field |
 
 ## Other files
 
 | File | Mode | What |
 |---|---|---|
+| `~/.local/bin/phone-status` | desktop | KDE Connect status JSON / actions (ring, clipboard, browse, settings) for the Go menu phone card; Nautilus right-click Scripts → Send to phone |
 | `~/.local/bin/tablet-mode` | tablet | The switcher: devices, bar swap, gestures, keyboard, rotation, per-mode wallpaper, `dismiss` |
 | `~/.config/tablet-mode/gestures` | tablet | Edge-swipe gestures (lisgd) |
 | `~/.config/tablet-mode/apps` | tablet | Apps shown in the tablet app grid |

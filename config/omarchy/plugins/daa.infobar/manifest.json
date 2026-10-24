@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "daa.infobar",
+  "name": "Info bar",
+  "version": "1.0.0",
+  "author": "daa",
+  "description": "Tap Super: workspaces with their apps, time, weather, battery, wifi, bluetooth and a quote that changes every 6 hours.",
+  "kinds": [
+    "panel"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "panel": "InfoBar.qml"
+  }
+}

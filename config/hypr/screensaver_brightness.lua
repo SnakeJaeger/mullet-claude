@@ -7,19 +7,20 @@ local screensaver_windows = {} -- address -> true
 local count = 0
 
 local function brightness(level)
-  hl.dispatch(hl.dsp.exec_cmd("omarchy-brightness-display --no-osd " .. level))
+  -- brightness-step's scale (100% = raw 4054), same as the keys and slider.
+  hl.dispatch(hl.dsp.exec_cmd("brightness-step set " .. level .. " --no-osd"))
 end
 
 hl.on("window.open", function(window)
   if not window or window.class ~= screensaver_class then return end
   screensaver_windows[window.address] = true
   count = count + 1
-  if count == 1 then brightness("20%") end
+  if count == 1 then brightness(20) end
 end)
 
 hl.on("window.close", function(window)
   if not window or not screensaver_windows[window.address] then return end
   screensaver_windows[window.address] = nil
   count = count - 1
-  if count == 0 then brightness("80%") end
+  if count == 0 then brightness(80) end
 end)

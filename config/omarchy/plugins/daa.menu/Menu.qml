@@ -24,6 +24,8 @@ Item {
     try { payload = JSON.parse(payloadJson || "{}") } catch (e) { payload = ({}) }
 
     if (payload.fontFamily) root.fontFamily = payload.fontFamily
+    // Easter egg: SUPER + CTRL + ALT + SPACE (~/.config/hypr/bindings.lua) adds "egg".
+    root.eggPending = payload.egg === true
 
     // A list a script is waiting on (SUPER+K) that gets replaced by another
     // menu would leave that script waiting forever; let it go first.
@@ -159,14 +161,94 @@ Item {
   // every submenu opened from Go, so they stay one click away); those
   // rows (plus About and the lab rows, still searchable) leave its list.
   readonly property bool goLayout: !root.dmenuActive && root.homeMenu === "root"
+
+  // Easter egg (SUPER + CTRL + ALT + SPACE): the Go menu swings in
+  // on its hinge near the top-left corner with no brakes. When the bottom-left
+  // corner hits the left edge of the screen the hinge snaps, and everything
+  // carries on with the momentum it had at that instant: each point was
+  // moving along its arc around the hinge, and the corner's hit on the solid
+  // left edge kicks all of it back to the right: the card cartwheels right and
+  // down, and its contents, which aren't glued on, fly off on their own paths
+  // (the further from the hinge, the faster), drifting off the card as it
+  // turns, until gravity takes everything off the bottom. Pieces are children of the card, so each one maps
+  // its world path back into the card's moving frame (eggPiece).
+  property bool eggPending: false
+  property bool egging: false
+  property bool eggSnapped: false
+  property real eggMs: 0                     // ms since the hinge snapped
+  readonly property real eggGravity: 2600    // px/s²
+  readonly property real eggOmega: 1.9       // rad/s clockwise at the snap (the swing's own speed)
+  property real eggTheta0: 0                 // deg, card angle at the snap
+  property point eggHinge: Qt.point(0, 0)    // hinge (card top-left) in panel coords
+  property size eggCardSize: Qt.size(0, 0)
+  signal eggSnap()
+
+  function eggRand(seed) { var x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x) }
+  function eggHash(text) { var h = 0; text = String(text || ""); for (var i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) % 9973; return h }
+  function eggTime() { return root.egging && root.eggSnapped ? root.eggMs / 1000 : 0 }
+  // Card-local point -> panel coords at the moment of the snap.
+  function eggWorld(p) {
+    var a = root.eggTheta0 * Math.PI / 180, c = Math.cos(a), s = Math.sin(a)
+    return { x: root.eggHinge.x + c * p.x - s * p.y, y: root.eggHinge.y + s * p.x + c * p.y }
+  }
+  // Momentum after the snap. The corner's hit on the wall turns the swing
+  // into a cartwheel to the right: what was moving into the wall is thrown
+  // back off it, so every point heads right and down, faster the further it
+  // sat from the hinge (top-left slowest, the right-hand cards fastest).
+  function eggVelocity(rx, ry) {
+    return { x: root.eggOmega * (0.45 * ry + 0.35 * rx), y: root.eggOmega * 0.8 * rx }
+  }
+  // The card itself: centre position (panel coords) and angle (deg) t seconds
+  // after the snap, plus where its centre was at the snap. It spins on
+  // clockwise about its centre (the cartwheel) and never passes the solid
+  // left edge of the screen.
+  function eggCard(t) {
+    var w = root.eggCardSize.width, h = root.eggCardSize.height
+    var c0 = eggWorld(Qt.point(w / 2, h / 2))
+    var v = eggVelocity(c0.x - root.eggHinge.x, c0.y - root.eggHinge.y)
+    var x = c0.x + v.x * t, y = c0.y + v.y * t + 0.5 * root.eggGravity * t * t
+    var a = root.eggTheta0 + root.eggOmega * 1.1 * t * 180 / Math.PI
+    var r = a * Math.PI / 180, cos = Math.cos(r), sin = Math.sin(r), minX = Infinity
+    var corners = [[-w / 2, -h / 2], [w / 2, -h / 2], [-w / 2, h / 2], [w / 2, h / 2]]
+    for (var i = 0; i < 4; i++) minX = Math.min(minX, x + cos * corners[i][0] - sin * corners[i][1])
+    if (minX < 0) x -= minX
+    return { x: x, y: y, a: a, x0: c0.x, y0: c0.y }
+  }
+  // A piece centred at card-local p: its offset and rotation in the card's
+  // (moving) frame, t seconds after the snap. It flies its own path and
+  // bounces off the left edge like the card.
+  function eggPiece(p, seed) {
+    var t = eggTime()
+    if (t <= 0) return { x: 0, y: 0, r: 0 }
+    var w0 = eggWorld(p)
+    var v = eggVelocity(w0.x - root.eggHinge.x, w0.y - root.eggHinge.y)
+    var vx = v.x * (0.9 + 0.2 * eggRand(seed)), vy = v.y * (0.9 + 0.2 * eggRand(seed + 1)) - 60 * eggRand(seed + 2)
+    var wx = w0.x + vx * t, wy = w0.y + vy * t + 0.5 * root.eggGravity * t * t
+    if (wx < 0) wx = -wx * 0.45
+    var card = eggCard(t), a = card.a * Math.PI / 180
+    var dx = wx - card.x, dy = wy - card.y
+    var lx = root.eggCardSize.width / 2 + Math.cos(a) * dx + Math.sin(a) * dy
+    var ly = root.eggCardSize.height / 2 - Math.sin(a) * dx + Math.cos(a) * dy
+    var spin = (eggRand(seed + 13) - 0.3) * 260 * t
+    return { x: lx - p.x, y: ly - p.y, r: root.eggTheta0 + spin - card.a }
+  }
   readonly property bool showGoFooter: root.goLayout && !root.filterText
   readonly property int goFooterButtonHeight: Math.round(root.baseRowHeight * 1.5)
-  // The lab card (LabCard.qml) rides just above the footer, so it counts as
-  // part of the footer's height.
-  readonly property int labCardHeight: Style.space(96)
-  readonly property int goFooterHeight: root.showGoFooter ? root.goFooterButtonHeight + root.contentSpacing + root.labCardHeight + Math.round(root.contentSpacing * 1.5) : 0
+  // The lab card (LabCard.qml) and the system card (StatsCard.qml) stack in
+  // a column right of the list; the footer runs under both.
+  readonly property int labCardHeight: Style.space(110)
+  readonly property int statsCardHeight: Style.space(122)
+  readonly property bool showGoDash: root.goLayout
+  readonly property int goDashWidth: Style.space(250)
+  readonly property int goDashGap: Style.space(12)
+  readonly property int phoneCardHeight: Style.space(118)
+  readonly property int serverCardHeight: Style.space(100)
+  readonly property int goDashHeight: root.statsCardHeight + root.labCardHeight + root.serverCardHeight + root.phoneCardHeight + root.contentSpacing * 3
+  readonly property int goFooterHeight: root.showGoFooter ? root.goFooterButtonHeight + Math.round(root.contentSpacing * 1.5) : 0
   readonly property var goFooterItems: [
     { icon: "󰀻", label: "Apps", command: "omarchy-shell shell toggle daa.launcher" },
+    { icon: "\uf120", label: "Terminal", command: "hyprctl eval 'dropdown_show(\"terminal\")'" },
+    { icon: "󰌌", label: "Keys", command: "~/.local/bin/menu-toggle 'dmenu:Keybindings' omarchy-menu-keybindings" },
     { icon: "󰓶", label: "Tablet", target: "tablet" },
     { icon: "󰐥", label: "System", target: "system" }
   ]
@@ -181,7 +263,9 @@ Item {
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
-    : Math.min(Math.max(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight + goFooterHeight, root.showSidebar ? root.sidebarMinHeight : 0), panel.height - Style.gapsOut * 2)
+    : Math.min(Math.max(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight + goFooterHeight,
+        root.showSidebar ? root.sidebarMinHeight : 0,
+        root.showGoDash ? contentMargin * 2 + goDashHeight + goFooterHeight : 0), panel.height - Style.gapsOut * 2)
   // Tall enough for the sidebar's labelled groups, so a search that leaves
   // only a row or two doesn't squash them together. The sidebar runs the
   // full height of the card, beside the Go footer rather than above it.
@@ -379,9 +463,11 @@ Item {
       actionFor: function(value) { return "omarchy-font-set " + Util.shellQuote(value) }
     },
     "power-profiles": {
-      script: "current=$(powerprofilesctl get 2>/dev/null); omarchy-powerprofiles-list 2>/dev/null | while read -r p; do [[ -z $p ]] && continue; printf '%s\\t%s\\t%s\\n' \"$p\" \"$p\" \"$current\"; done",
+      // power-refresh adds less-balanced (balanced at 120 Hz) and ties each
+      // profile to a refresh rate.
+      script: "current=$(power-refresh list --active-state 2>/dev/null | awk -F'\\t' '$2 == 1 { print $1 }'); power-refresh list 2>/dev/null | while read -r p; do [[ -z $p ]] && continue; printf '%s\\t%s\\t%s\\n' \"$p\" \"$p\" \"$current\"; done",
       icon: "\udb81\udc0b",
-      actionFor: function(value) { return "omarchy-powerprofiles-set autodetect " + Util.shellQuote(value) }
+      actionFor: function(value) { return "power-refresh set " + Util.shellQuote(value) }
     }
   })
 
@@ -1219,11 +1305,16 @@ Item {
       if (!visible) { cardTop = -1; maxRowsHeight = -1; return }
       if (midScreen || systemMenu) slideIn.restart()
       else card.slide = 0
+      if (root.goLayout && root.eggPending) { root.eggPending = false; eggAnim.restart() }
+      else if (root.goLayout) { swingIn.restart(); goDash.bounceIn(); goFooter.deal() }
+      else card.swing = 1
     }
 
     Rectangle {
       anchors.fill: parent
       color: root.scrim
+      // Easter egg: the dimming lifts as everything falls away.
+      opacity: root.egging && root.eggSnapped ? Math.max(0, 1 - root.eggMs / 900) : 1
     }
 
     MouseArea {
@@ -1233,7 +1324,7 @@ Item {
 
     BorderSurface {
       id: card
-      width: root.cardWidth + (root.showSidebar ? root.sidebarWidth : 0)
+      width: root.cardWidth + (root.showSidebar ? root.sidebarWidth : 0) + (root.showGoDash ? root.goDashWidth + root.goDashGap : 0)
       height: Math.min(root.cardHeight, panel.height - Style.gapsOut - panel.effectiveCardTop)
       radius: root.cornerRadius
       // The Go menu (opened at "root" from the desktop Arch button) sits near
@@ -1255,7 +1346,78 @@ Item {
       // 1 = pushed fully off the left edge (right edge for other menus);
       // slideIn eases it to 0.
       property real slide: 0
-      transform: Translate { x: card.slide * (panel.systemMenu || panel.midScreen ? -(card.x + card.width) : panel.width - card.x) }
+      // The Go menu swings down out of the Arch button like a hinged sign:
+      // pivoting on its top-left corner it rotates down from -16° while it
+      // unfolds from 55% height, overshooting a touch before it settles.
+      property real swing: 1
+      opacity: Math.min(1, swing * 2.5)
+      // Easter egg: eggTilt carries the swing on past rest until the bottom-left
+      // corner meets the screen edge; then the hinge snaps and eggNow (from
+      // root.eggCard) spins the card about its centre and moves it.
+      property real eggTilt: 0
+      readonly property real eggHitAngle: Math.asin(Math.min(1, card.x / Math.max(1, card.height))) * 180 / Math.PI
+      readonly property var eggNow: root.eggTime() > 0 ? root.eggCard(root.eggTime()) : null
+      transform: [
+        Rotation {
+          origin.x: card.width / 2
+          origin.y: card.height / 2
+          angle: card.eggNow ? card.eggNow.a - root.eggTheta0 : 0
+        },
+        Translate { x: card.slide * (panel.systemMenu || panel.midScreen ? -(card.x + card.width) : panel.width - card.x) },
+        Scale { origin.x: 0; origin.y: 0; xScale: 0.92 + 0.08 * card.swing; yScale: 0.55 + 0.45 * card.swing },
+        Rotation { origin.x: 0; origin.y: 0; angle: (card.swing - 1) * 16 + card.eggTilt },
+        Translate {
+          x: card.eggNow ? card.eggNow.x - card.eggNow.x0 : 0
+          y: card.eggNow ? card.eggNow.y - card.eggNow.y0 : 0
+        }
+      ]
+
+      // Backstop: whatever happens to the animation, the menu is closed and
+      // back to normal 3s after the easter egg starts.
+      Timer {
+        id: eggGuard
+        interval: 3000
+        onTriggered: if (root.egging) {
+          eggAnim.stop()
+          root.cancel()
+          root.egging = false; root.eggSnapped = false; root.eggMs = 0; card.eggTilt = 0
+        }
+      }
+
+      SequentialAnimation {
+        id: eggAnim
+        ScriptAction { script: {
+          root.egging = true; root.eggSnapped = false; root.eggMs = 0; card.eggTilt = 0
+          eggGuard.restart()
+          labCard.shove = 0; statsCard.shove = 0; serverCard.shove = 0; phoneCard.shove = 0
+          labCard.opacity = 1; statsCard.opacity = 1; serverCard.opacity = 1; phoneCard.opacity = 1
+          goFooter.dealClock = 1
+        } }
+        // Swing in on the hinge with no brakes (ends at ~1.9 rad/s)...
+        NumberAnimation { target: card; property: "swing"; from: 0; to: 1; duration: 300; easing.type: Easing.InQuad }
+        // ...on past rest at the same speed until the corner meets the edge...
+        NumberAnimation { target: card; property: "eggTilt"; to: card.eggHitAngle; duration: Math.max(16, card.eggHitAngle / 107 * 1000) }
+        // ...where the hinge snaps.
+        ScriptAction { script: {
+          root.eggTheta0 = card.eggTilt
+          root.eggHinge = Qt.point(card.x, card.y)
+          root.eggCardSize = Qt.size(card.width, card.height)
+          root.eggSnap()
+          root.eggSnapped = true
+        } }
+        NumberAnimation { target: root; property: "eggMs"; from: 0; to: 1250; duration: 1250 }
+        ScriptAction { script: root.cancel() }
+        ScriptAction { script: { root.egging = false; root.eggSnapped = false; root.eggMs = 0; card.eggTilt = 0 } }
+      }
+      NumberAnimation on swing {
+        id: swingIn
+        running: false
+        from: 0
+        to: 1
+        duration: 480
+        easing.type: Easing.OutBack
+        easing.overshoot: 1.3
+      }
       NumberAnimation on slide {
         id: slideIn
         running: false
@@ -1279,6 +1441,8 @@ Item {
 
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: function(event) {
+          // Easter egg: keys pressed mid-fall mustn't type into the search.
+          if (root.egging) { event.accepted = true; return }
           if (root.deleteConfirmOpen) {
             if (deleteConfirm.handleKey(event)) event.accepted = true
             return
@@ -1360,16 +1524,16 @@ Item {
           color: Util.alpha(root.foreground, 0.2)
         }
 
-        // Files (folders) on top, then the Network group (sidebarMiddle).
+        // Files (folders) on top, then the Network group (VNC, Remmina, GNS3, Tailscale, Mullvad).
         Column {
           anchors.top: parent.top
           x: root.sidebarLeft ? 0 : Style.space(12)
           spacing: Style.space(6)
           Text { text: "Files"; width: root.sidebarWidth - Style.space(12); height: root.sidebarLabelHeight; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; color: root.foreground; opacity: 0.58; font.family: root.fontFamily; font.pixelSize: Style.font.body }
           Repeater { model: root.sidebarTop; delegate: sidebarButton }
-          // The Network group is desktop-only: not in the tablet menu.
-          Item { visible: root.goLayout && root.sidebarMiddle.length > 0; width: 1; height: Style.space(12) }
-          Text { visible: root.goLayout && root.sidebarMiddle.length > 0; text: "Network"; width: root.sidebarWidth - Style.space(12); height: root.sidebarLabelHeight; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; color: root.foreground; opacity: 0.58; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+          // Network (VNC, Remmina, GNS3, Tailscale, Mullvad) is desktop-only: not in the tablet menu.
+          Item { visible: root.goLayout; width: 1; height: Style.space(12) }
+          Text { visible: root.goLayout; text: "Network"; width: root.sidebarWidth - Style.space(12); height: root.sidebarLabelHeight; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; color: root.foreground; opacity: 0.58; font.family: root.fontFamily; font.pixelSize: Style.font.body }
           Repeater { model: root.goLayout ? root.sidebarMiddle : []; delegate: sidebarButton }
         }
 
@@ -1389,6 +1553,16 @@ Item {
           Rectangle {
             id: sideButton
             required property var modelData
+            property point eggP: Qt.point(0, 0)
+            readonly property var eggOff: root.eggPiece(sideButton.eggP, 300 + root.eggHash(sideButton.modelData.label))
+            Connections {
+              target: root
+              function onEggSnap() { sideButton.eggP = sideButton.mapToItem(card, sideButton.width / 2, sideButton.height / 2) }
+            }
+            transform: [
+              Rotation { origin.x: sideButton.width / 2; origin.y: sideButton.height / 2; angle: sideButton.eggOff.r },
+              Translate { x: sideButton.eggOff.x; y: sideButton.eggOff.y }
+            ]
             width: root.sidebarWidth - Style.space(12)
             height: width
             radius: root.cornerRadius
@@ -1448,31 +1622,207 @@ Item {
         }
       }
 
-      // Go menu lab card, just above the footer: lab ping + sparkline, GNS3 / Tailscale / Mullvad.
-      Loader {
-        id: labCard
-        // Always loaded so it keeps sampling pings while the menu is closed.
-        active: true
-        visible: root.showGoFooter && status === Loader.Ready
-        anchors.left: goFooter.left
-        anchors.right: goFooter.right
-        anchors.bottom: goFooter.top
-        // Clear of the footer's divider, which sits half a gap above it.
-        anchors.bottomMargin: root.contentSpacing * 1.5
-        height: root.labCardHeight
-        source: "file://" + Quickshell.env("HOME") + "/.config/omarchy/plugins/daa.menu/LabCard.qml"
-        onLoaded: {
-          item.active = Qt.binding(function() { return root.opened && root.showGoFooter })
-          item.foreground = Qt.binding(function() { return root.foreground })
-          item.hoverBackground = Qt.binding(function() { return root.selectedBackground })
-          item.fontFamily = Qt.binding(function() { return root.fontFamily })
-          item.radius = Qt.binding(function() { return root.cornerRadius })
+      // Go menu dash, right of the list: the lab card (lab ping + sparkline,
+      // GNS3 / Tailscale / Mullvad; click = VNC) over the system card (CPU /
+      // RAM / disk / temp; click = btop). Trails the card's swing-in a beat.
+      Column {
+        id: goDash
+        visible: root.showGoDash
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: card.contentTopInset
+        anchors.rightMargin: card.contentRightInset
+        width: root.goDashWidth
+        spacing: root.contentSpacing
+
+        // Momentum: as the menu swings down the cards slide right, hit the
+        // menu's right wall and bounce off it before they settle (OutBounce
+        // treats the end value as the wall). Each card hangs further from the
+        // hinge than the one above, so they land top to bottom.
+        function bounceIn() { statsBounce.restart(); labBounce.restart(); serverBounce.restart(); phoneBounce.restart() }
+
+        SequentialAnimation {
+          id: serverBounce
+          PropertyAction { target: serverCard; property: "shove"; value: -Style.space(135) }
+          PropertyAction { target: serverCard; property: "opacity"; value: 0 }
+          PauseAnimation { duration: 180 }
+          ParallelAnimation {
+            NumberAnimation { target: serverCard; property: "shove"; to: 0; duration: 790; easing.type: Easing.OutBounce }
+            NumberAnimation { target: serverCard; property: "opacity"; to: 1; duration: 160 }
+          }
         }
-        Connections {
-          target: labCard.item
-          function onClicked() {
-            root.cancel()
-            root.runAction("uwsm-app -- remmina")
+
+        SequentialAnimation {
+          id: phoneBounce
+          PropertyAction { target: phoneCard; property: "shove"; value: -Style.space(160) }
+          PropertyAction { target: phoneCard; property: "opacity"; value: 0 }
+          PauseAnimation { duration: 240 }
+          ParallelAnimation {
+            NumberAnimation { target: phoneCard; property: "shove"; to: 0; duration: 840; easing.type: Easing.OutBounce }
+            NumberAnimation { target: phoneCard; property: "opacity"; to: 1; duration: 160 }
+          }
+        }
+
+        SequentialAnimation {
+          id: labBounce
+          PropertyAction { target: labCard; property: "shove"; value: -Style.space(110) }
+          PropertyAction { target: labCard; property: "opacity"; value: 0 }
+          PauseAnimation { duration: 120 }
+          ParallelAnimation {
+            NumberAnimation { target: labCard; property: "shove"; to: 0; duration: 740; easing.type: Easing.OutBounce }
+            NumberAnimation { target: labCard; property: "opacity"; to: 1; duration: 160 }
+          }
+        }
+
+        SequentialAnimation {
+          id: statsBounce
+          PropertyAction { target: statsCard; property: "shove"; value: -Style.space(90) }
+          PropertyAction { target: statsCard; property: "opacity"; value: 0 }
+          PauseAnimation { duration: 60 }
+          ParallelAnimation {
+            NumberAnimation { target: statsCard; property: "shove"; to: 0; duration: 700; easing.type: Easing.OutBounce }
+            NumberAnimation { target: statsCard; property: "opacity"; to: 1; duration: 160 }
+          }
+        }
+
+        Loader {
+          id: statsCard
+          active: root.showGoDash
+          width: parent.width
+          property real shove: 0
+          property point eggP: Qt.point(0, 0)
+          readonly property var eggOff: root.eggPiece(statsCard.eggP, 401)
+          Connections {
+            target: root
+            function onEggSnap() { statsCard.eggP = statsCard.mapToItem(card, statsCard.width / 2, statsCard.height / 2) }
+          }
+          transform: [
+            Rotation { origin.x: statsCard.width / 2; origin.y: statsCard.height / 2; angle: statsCard.eggOff.r },
+            Translate { x: statsCard.eggOff.x; y: statsCard.eggOff.y },
+            Translate { x: statsCard.shove }
+          ]
+          height: root.statsCardHeight
+          source: "file://" + Quickshell.env("HOME") + "/.config/omarchy/plugins/daa.menu/StatsCard.qml"
+          onLoaded: {
+            item.active = Qt.binding(function() { return root.opened && root.showGoDash })
+            item.foreground = Qt.binding(function() { return root.foreground })
+            item.hoverBackground = Qt.binding(function() { return root.selectedBackground })
+            item.fontFamily = Qt.binding(function() { return root.fontFamily })
+            item.radius = Qt.binding(function() { return root.cornerRadius })
+          }
+          Connections {
+            target: statsCard.item
+            function onClicked() {
+              root.cancel()
+              root.runAction("hyprctl clients -j | jq -e 'any(.[]; .class == \"dropdown.btop\")' >/dev/null"
+                + " || { uwsm-app -- alacritty --class dropdown.btop -e btop & }; "
+                + "hyprctl dispatch 'hl.dsp.workspace.toggle_special(\"dropdown-btop\")'")
+            }
+          }
+        }
+
+        Loader {
+          id: labCard
+          // Always loaded so it keeps sampling pings while the menu is closed.
+          active: true
+          width: parent.width
+          property real shove: 0
+          property point eggP: Qt.point(0, 0)
+          readonly property var eggOff: root.eggPiece(labCard.eggP, 402)
+          Connections {
+            target: root
+            function onEggSnap() { labCard.eggP = labCard.mapToItem(card, labCard.width / 2, labCard.height / 2) }
+          }
+          transform: [
+            Rotation { origin.x: labCard.width / 2; origin.y: labCard.height / 2; angle: labCard.eggOff.r },
+            Translate { x: labCard.eggOff.x; y: labCard.eggOff.y },
+            Translate { x: labCard.shove }
+          ]
+          height: root.labCardHeight
+          source: "file://" + Quickshell.env("HOME") + "/.config/omarchy/plugins/daa.menu/LabCard.qml"
+          onLoaded: {
+            item.active = Qt.binding(function() { return root.opened && root.showGoDash })
+            item.foreground = Qt.binding(function() { return root.foreground })
+            item.hoverBackground = Qt.binding(function() { return root.selectedBackground })
+            item.fontFamily = Qt.binding(function() { return root.fontFamily })
+            item.radius = Qt.binding(function() { return root.cornerRadius })
+          }
+          Connections {
+            target: labCard.item
+            function onClicked() {
+              root.cancel()
+              root.runAction("uwsm-app -- remmina")
+            }
+          }
+        }
+
+        // Self-hosted services on the lab box (ServerCard.qml, via ~/.local/bin/server-status).
+        Loader {
+          id: serverCard
+          active: root.showGoDash
+          width: parent.width
+          height: root.serverCardHeight
+          property real shove: 0
+          property point eggP: Qt.point(0, 0)
+          readonly property var eggOff: root.eggPiece(serverCard.eggP, 403)
+          Connections {
+            target: root
+            function onEggSnap() { serverCard.eggP = serverCard.mapToItem(card, serverCard.width / 2, serverCard.height / 2) }
+          }
+          transform: [
+            Rotation { origin.x: serverCard.width / 2; origin.y: serverCard.height / 2; angle: serverCard.eggOff.r },
+            Translate { x: serverCard.eggOff.x; y: serverCard.eggOff.y },
+            Translate { x: serverCard.shove }
+          ]
+          source: "file://" + Quickshell.env("HOME") + "/.config/omarchy/plugins/daa.menu/ServerCard.qml"
+          onLoaded: {
+            item.active = Qt.binding(function() { return root.opened && root.showGoDash })
+            item.foreground = Qt.binding(function() { return root.foreground })
+            item.hoverBackground = Qt.binding(function() { return root.selectedBackground })
+            item.fontFamily = Qt.binding(function() { return root.fontFamily })
+            item.radius = Qt.binding(function() { return root.cornerRadius })
+          }
+          Connections {
+            target: serverCard.item
+            function onOpened(name) {
+              root.cancel()
+              root.runAction("~/.local/bin/server-status open " + Util.shellQuote(name))
+            }
+          }
+        }
+
+        // KDE Connect phone (PhoneCard.qml, via ~/.local/bin/phone-status).
+        Loader {
+          id: phoneCard
+          active: root.showGoDash
+          width: parent.width
+          height: root.phoneCardHeight
+          property real shove: 0
+          property point eggP: Qt.point(0, 0)
+          readonly property var eggOff: root.eggPiece(phoneCard.eggP, 404)
+          Connections {
+            target: root
+            function onEggSnap() { phoneCard.eggP = phoneCard.mapToItem(card, phoneCard.width / 2, phoneCard.height / 2) }
+          }
+          transform: [
+            Rotation { origin.x: phoneCard.width / 2; origin.y: phoneCard.height / 2; angle: phoneCard.eggOff.r },
+            Translate { x: phoneCard.eggOff.x; y: phoneCard.eggOff.y },
+            Translate { x: phoneCard.shove }
+          ]
+          source: "file://" + Quickshell.env("HOME") + "/.config/omarchy/plugins/daa.menu/PhoneCard.qml"
+          onLoaded: {
+            item.active = Qt.binding(function() { return root.opened && root.showGoDash })
+            item.foreground = Qt.binding(function() { return root.foreground })
+            item.hoverBackground = Qt.binding(function() { return root.selectedBackground })
+            item.fontFamily = Qt.binding(function() { return root.fontFamily })
+            item.radius = Qt.binding(function() { return root.cornerRadius })
+          }
+          Connections {
+            target: phoneCard.item
+            function onRequested(action, closeMenu) {
+              if (closeMenu) root.cancel()
+              root.runAction("~/.local/bin/phone-status " + action)
+            }
           }
         }
       }
@@ -1490,6 +1840,23 @@ Item {
         anchors.bottomMargin: card.contentBottomInset
         height: root.goFooterButtonHeight
 
+        // Card-dealer spread: the buttons start as a deck on Apps, each with a
+        // card face, and peel off right one after another, the top card
+        // (System) first, tilting as they slide, until Apps (the bottom card)
+        // is uncovered; the faces fade once dealt.
+        property real dealClock: 1
+        readonly property int dealStagger: 70
+        readonly property int dealTravel: 340
+        readonly property int dealTotal: dealStagger * (root.goFooterItems.length - 1) + dealTravel
+        function deal() { dealAnim.restart() }
+
+        SequentialAnimation {
+          id: dealAnim
+          PropertyAction { target: goFooter; property: "dealClock"; value: 0 }
+          PauseAnimation { duration: 160 }
+          NumberAnimation { target: goFooter; property: "dealClock"; to: 1; duration: goFooter.dealTotal }
+        }
+
         Rectangle {
           anchors.left: parent.left
           anchors.right: parent.right
@@ -1506,10 +1873,48 @@ Item {
             Rectangle {
               id: footButton
               required property var modelData
+              required property int index
+              readonly property int count: root.goFooterItems.length
+              // 0 = still in the deck under Apps, 1 = dealt into its place.
+              readonly property real dealt: {
+                var start = (count - 1 - index) * goFooter.dealStagger
+                var t = Math.max(0, Math.min(1, (goFooter.dealClock * goFooter.dealTotal - start) / goFooter.dealTravel))
+                return 1 - Math.pow(1 - t, 3)
+              }
               width: goFooter.width / root.goFooterItems.length
               height: goFooter.height
               radius: root.cornerRadius
               color: footArea.pressed || footArea.containsMouse ? root.selectedBackground : "transparent"
+              // Apps is the bottom card of the deck, so it never covers the others.
+              z: index
+              property point eggP: Qt.point(0, 0)
+              readonly property var eggOff: root.eggPiece(footButton.eggP, 500 + footButton.index)
+              Connections {
+                target: root
+                function onEggSnap() { footButton.eggP = footButton.mapToItem(card, footButton.width / 2, footButton.height / 2) }
+              }
+              transform: [
+                Rotation { origin.x: footButton.width / 2; origin.y: footButton.height / 2; angle: footButton.eggOff.r },
+                Translate { x: footButton.eggOff.x; y: footButton.eggOff.y },
+                Translate { x: -footButton.index * footButton.width * (1 - footButton.dealt) },
+                Rotation {
+                  origin.x: footButton.width / 2
+                  origin.y: footButton.height
+                  angle: footButton.index > 0 ? (1 - footButton.dealt) * -7 : 0
+                }
+              ]
+
+              // The card face, shown while the deck is being dealt.
+              Rectangle {
+                anchors.fill: parent
+                z: -1
+                radius: root.cornerRadius
+                color: root.background
+                border.width: Style.spacing.hairline
+                border.color: Util.alpha(root.foreground, 0.1)
+                opacity: goFooter.dealClock < 1 ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+              }
 
               Column {
                 anchors.centerIn: parent
@@ -1554,14 +1959,26 @@ Item {
         anchors.fill: parent
         anchors.topMargin: card.contentTopInset
         anchors.rightMargin: card.contentRightInset + (root.showSidebar && !root.sidebarLeft ? root.sidebarWidth : 0)
+          + (root.showGoDash ? root.goDashWidth + root.goDashGap : 0)
         anchors.bottomMargin: card.contentBottomInset
         anchors.leftMargin: card.contentLeftInset + (root.showSidebar && root.sidebarLeft ? root.sidebarWidth + Style.space(12) : 0)
         spacing: root.contentSpacing
 
         Rectangle {
+          id: eggHeader
           width: parent.width
           height: root.headerHeight
           radius: root.cornerRadius
+          property point eggP: Qt.point(0, 0)
+          readonly property var eggOff: root.eggPiece(eggHeader.eggP, 700)
+          Connections {
+            target: root
+            function onEggSnap() { eggHeader.eggP = eggHeader.mapToItem(card, eggHeader.width / 2, eggHeader.height / 2) }
+          }
+          transform: [
+            Rotation { origin.x: eggHeader.width / 2; origin.y: eggHeader.height / 2; angle: eggHeader.eggOff.r },
+            Translate { x: eggHeader.eggOff.x; y: eggHeader.eggOff.y }
+          ]
           color: "transparent"
 
           // Back arrow for touch: same as Backspace, shown inside submenus.
@@ -1617,7 +2034,7 @@ Item {
             id: resultList
             anchors.fill: parent
             model: displayModel
-            clip: true
+            clip: !root.egging
             spacing: root.rowSpacing
             boundsBehavior: Flickable.StopAtBounds
 
@@ -1666,6 +2083,16 @@ Item {
               height: root.rowHeightForDetail(row.detail)
               radius: root.cornerRadius
               color: row.hasCursor ? root.selectedBackground : "transparent"
+              property point eggP: Qt.point(0, 0)
+              readonly property var eggOff: root.eggPiece(row.eggP, 200 + row.index)
+              Connections {
+                target: root
+                function onEggSnap() { row.eggP = row.mapToItem(card, row.width / 2, row.height / 2) }
+              }
+              transform: [
+                Rotation { origin.x: row.width / 2; origin.y: row.height / 2; angle: row.eggOff.r },
+                Translate { x: row.eggOff.x; y: row.eggOff.y }
+              ]
               borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()
 
               Rectangle {

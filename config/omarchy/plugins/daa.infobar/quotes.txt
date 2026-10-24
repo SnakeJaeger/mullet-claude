@@ -1,0 +1,38 @@
+# One per line: text — author. The info bar shows a new one every 6 hours.
+The best way out is always through. — Robert Frost
+Simplicity is prerequisite for reliability. — Edsger Dijkstra
+It's always DNS. — every network engineer, eventually
+Not all those who wander are lost. — J.R.R. Tolkien
+Be curious, not judgmental. — Ted Lasso
+Have you tried turning it off and on again? — The IT Crowd
+If I have seen further, it is by standing on the shoulders of giants. — Isaac Newton
+Otters hold hands while they sleep so they don't drift apart.
+The quieter you become, the more you are able to hear. — Rumi
+Packets go where routes tell them, not where you hope they will.
+Do or do not. There is no try. — Yoda
+First, solve the problem. Then, write the code. — John Johnson
+Little by little, one travels far. — J.R.R. Tolkien
+Ping is free. Assumptions are expensive.
+The obstacle is the way. — Marcus Aurelius
+Done is better than perfect. — Sheryl Sandberg
+Every expert was once a beginner. — Helen Hayes
+Kids ask why five times. So should your troubleshooting.
+You miss 100% of the shots you don't take. — Wayne Gretzky
+Talk is cheap. Show me the code. — Linus Torvalds
+In the middle of difficulty lies opportunity. — Albert Einstein
+Layer 1 problems wear layer 7 disguises.
+Stay hungry, stay foolish. — Stewart Brand
+Make it work, make it right, make it fast. — Kent Beck
+Wherever you go, go with all your heart. — Confucius
+A FortiGate a day keeps the threat actors away.
+The only way to do great work is to love what you do. — Steve Jobs
+Rest is not idleness. — John Lubbock
+Business up front, party in the back.
+What you do today can improve all your tomorrows. — Ralph Marston
+The network is the computer. — John Gage
+Happiness is a direction, not a place. — Sydney J. Harris
+Document it now. Future you is tired.
+Keep your face to the sunshine and you cannot see a shadow. — Helen Keller
+Nothing is impossible; the word itself says I'm possible. — Audrey Hepburn
+Otters have a favourite rock. Find yours.
+Real artists ship. — Steve Jobs

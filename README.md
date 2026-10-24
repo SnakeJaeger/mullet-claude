@@ -43,14 +43,15 @@ Lua config.
 
 | | |
 |---|---|
-| <img src="screenshots/desktop-01-clean.webp" alt="Floating bar islands over the wallpaper"><br>Floating bar islands over the wallpaper | <img src="screenshots/desktop-02-kitty-dropdown.webp" alt="Kitty dropdown (`SUPER + T`) with the fastfetch greeting"><br>Kitty dropdown (`SUPER + T`) with the fastfetch greeting |
+| <img src="screenshots/desktop-01-clean.webp" alt="Floating bar islands over the wallpaper"><br>Floating bar islands over the wallpaper | <img src="screenshots/desktop-02-kitty-dropdown.webp" alt="Terminal dropdown (`SUPER + T`) with the fastfetch greeting"><br>Terminal dropdown (`SUPER + T`) with the fastfetch greeting |
 | <img src="screenshots/desktop-03-launcher.webp" alt="App launcher"><br>App launcher | <img src="screenshots/desktop-04-clipboard.webp" alt="Clipboard, bottom-right, with Clear all"><br>Clipboard, bottom-right, with Clear all |
 | <img src="screenshots/desktop-05-claude-dropdown.webp" alt="Claude Code dropdown (`SUPER + C`), mid-screenshot session"><br>Claude Code dropdown (`SUPER + C`), mid-screenshot session | <img src="screenshots/desktop-06-firefox.webp" alt="Firefox, themed from the Omarchy colours"><br>Firefox, themed from the Omarchy colours |
-| <img src="screenshots/desktop-07-clock-panel-brightness.webp" alt="Clock hover panel and the brightness pop-up"><br>Clock hover panel and the brightness pop-up | <img src="screenshots/desktop-08-stats-flyout.webp" alt="Stats card under the right island: CPU, RAM, disk, temperature, uptime"><br>Stats card under the right island: CPU, RAM, disk, temperature, uptime |
 | <img src="screenshots/desktop-09-dolphin.webp" alt="Dolphin with the Omarchy KDE theme and icon-only Places"><br>Dolphin with the Omarchy KDE theme and icon-only Places | <img src="screenshots/desktop-10-catfish-search.webp" alt="Catfish dropdown (`SUPER + D`) searching the whole drive"><br>Catfish dropdown (`SUPER + D`) searching the whole drive |
 | <img src="screenshots/desktop-11-keybindings.webp" alt="Keybindings (`SUPER + K`), top-left"><br>Keybindings (`SUPER + K`), top-left | <img src="screenshots/desktop-12-system-menu.webp" alt="System menu (`SUPER + ESCAPE`), bottom-left for touch"><br>System menu (`SUPER + ESCAPE`), bottom-left for touch |
-| <img src="screenshots/desktop-13-go-menu-file-search.webp" alt="Go menu (`SUPER + SPACE`): typing offers a whole-drive Catfish search"><br>Go menu (`SUPER + SPACE`): typing offers a whole-drive Catfish search | <img src="screenshots/desktop-14-quick-launch.webp" alt="Quick-launch card under the left island"><br>Quick-launch card under the left island |
-| <img src="screenshots/desktop-15-password.webp" alt="Password dialog, risen from the bottom to a third of the way up"><br>Password dialog, risen from the bottom to a third of the way up | |
+| <img src="screenshots/desktop-13-go-menu-file-search.webp" alt="Go menu (`SUPER + SPACE`): typing offers a whole-drive Catfish search"><br>Go menu (`SUPER + SPACE`): typing offers a whole-drive Catfish search | <img src="screenshots/desktop-15-password.webp" alt="Password dialog, risen from the bottom to a third of the way up"><br>Password dialog, risen from the bottom to a third of the way up |
+| <img src="screenshots/desktop-16-info-bar.webp" alt="Info bar (tap SUPER): workspaces with their apps, time, weather, battery, Wi-Fi, Bluetooth and a quote"><br>Info bar (tap `SUPER`): workspaces and their apps, time, weather, status and a quote | <img src="screenshots/desktop-17-workspace-flash.webp" alt="Workspace number flash while the bar is hidden"><br>Workspace number flash while the bar is hidden |
+| <img src="screenshots/desktop-18-display-refresh-boost.webp" alt="Display popup: refresh rate, power-profile hint, toggles, brightness and boost"><br>Display popup: refresh rate, toggles, brightness with a boost button | <img src="screenshots/desktop-19-power-profiles.webp" alt="Battery popup with four power profiles, including Less balanced"><br>Battery popup: four power profiles, each with its refresh rate |
+| <img src="screenshots/desktop-20-wifi-dns-vpn.webp" alt="Wi-Fi popup with Quad9 DNS and Mullvad / Tailscale toggles"><br>Wi-Fi popup: Quad9 DNS and Mullvad / Tailscale toggles (network names blurred) | |
 
 ### Tablet (the party)
 
@@ -69,7 +70,8 @@ Lua config.
 The folders mirror the home directory: `config/` is `~/.config` and `local/`
 is `~/.local`. So `config/hypr/dropdowns.lua` lives at
 `~/.config/hypr/dropdowns.lua`, and `local/bin/tablet-mode` at
-`~/.local/bin/tablet-mode`.
+`~/.local/bin/tablet-mode`. `system/` holds the few root-owned files, at
+their paths from `/`.
 
 ---
 
@@ -82,21 +84,36 @@ blur behind them.
 - **Left:** Arch logo (turns cyan on hover, click opens the Go menu,
   right-click opens a terminal), workspace dots, and an **app-name island**.
   Hover the app-name island for a list of every window per workspace,
-  scratchpads included, and click one to jump to it. Hover the Arch logo and
-  workspaces for a **quick-launch card**: Apps, Terminal, Files, Sublime and
-  Keybindings. Clicking the Arch logo hides it at once, so it never sits over
-  the Go menu.
+  scratchpads included, and click one to jump to it.
 - **Middle:** a **now-playing island** that only appears while media is
   playing. It lingers 5 s after playback stops.
-- **Centre:** the clock island. Hover it and a **drop-down toggle panel**
-  appears underneath: big icons with labels for Dictation, Screen recording,
-  Reminder, Night light, Do not disturb and Stay awake. Toggles that are on
-  sit on a cyan tile, and hovered tiles turn cyan. Toggles that are on also
-  show as small icons next to the clock. (`daa.desktop-indicators`)
-- **Right:** system icons. Hover the island for a **stats card** that drops
-  below it (CPU, RAM, disk, temperature, uptime), styled like the clock's.
-  Click it to open btop in a dropdown. The CPU figure comes from two readings
-  a quarter second apart, so it's there as soon as the card opens.
+- **Centre:** the clock island and the weather. Toggles that are on show as
+  small icons next to the clock (`daa.desktop-indicators`). The toggles
+  themselves live as chips in the matching popups: Do not disturb and
+  Dictation in the sound popup, Night light, Stay awake and Screen recording
+  in the display popup, Reminder in the calendar.
+- **Right:** system icons. **Popups open on hover**, no click needed, and
+  sliding along the bar switches between them. Clicks do something else:
+
+  | Icon | Left click |
+  |---|---|
+  | Claude usage (`daa.agents`) | Toggles the Claude Code dropdown |
+  | Speaker (`daa.audio`) | Mute / unmute |
+  | Display (`daa.monitor`) | Opens `wdisplays` (floating) |
+  | Weather (`daa.weather`) | Toggles the GNOME Weather dropdown |
+  | Battery, Wi-Fi, Bluetooth | Opens / closes the popup, as before |
+
+  A click that closes a popup keeps it shut until the cursor leaves the icon
+  and comes back, so it doesn't instantly hover open again.
+- **Popups with extras:**
+  - **Wi-Fi** (`daa.network`): a **VPN** row with Mullvad and Tailscale
+    toggles (each only shows if installed), and a **Quad9** DNS option next
+    to Omarchy's DHCP / Cloudflare / Google / Custom.
+  - **Display** (`daa.monitor`): the current refresh rate (and whether it's
+    adaptive) in the header, a note that the power profile sets it, and a
+    **Boost** button under the brightness slider (see below).
+  - **Battery** (`daa.power`): four power profiles instead of three.
+- System stats (CPU, RAM, disk, temperature, uptime) moved into the Go menu.
 - **Tray** (`daa.tray`): the hidden-icons drawer takes no room while
   collapsed. Omarchy's tray kept a gap for every hidden icon, so the bar grew
   with each tray app.
@@ -119,6 +136,56 @@ blur behind them.
   shut, and `~/.local/bin/lid-battery-guard` (a user service) suspends only
   when the lid is shut, the charger is out and the battery is at 20% or less.
 
+### Info bar (tap `SUPER`)
+A tap of `SUPER` on its own fades in a card at the bottom middle of the
+screen (`daa.infobar`): the workspaces in use with icons of the apps on them
+(the current one outlined), the time and date, the weather and where it's
+for, battery, Wi-Fi and Bluetooth, and a quote at the bottom that changes
+every 6 hours. Another tap hides it at once; otherwise it fades after 4 s.
+It fires on release, so `SUPER` shortcuts don't trigger it. Clicks pass
+through it. Mostly meant for when the bar is hidden.
+
+- Quotes: `daa.infobar/quotes.txt`, one per line, edited live.
+- Data: `~/.local/bin/infobar-status` prints one JSON snapshot per show.
+  Weather comes from wttr.in for the location saved with
+  `omarchy-weather-location --set "<town>" <lat>,<lon>`; going by IP, it
+  followed the VPN's exit server instead.
+- **Workspace flash:** while the bar is hidden, switching workspaces (swipe
+  or keys) flashes the workspace number mid-screen, with a dot per
+  workspace.
+
+### Power profiles, refresh rate and brightness
+The OLED does 48–120 Hz with adaptive sync. `~/.local/bin/power-refresh`
+ties a refresh rate to each power profile and adds a fourth profile:
+
+| Profile | power-profiles-daemon | Refresh |
+|---|---|---|
+| Saver | power-saver | 60 Hz |
+| Balanced | balanced | 60 Hz |
+| **Less balanced** | balanced | 120 Hz, adaptive (drops toward 48 Hz when idle) |
+| Performance | performance | 120 Hz fixed |
+
+Like Omarchy's profiles, the choice is remembered separately for charger
+and battery, so unplugging can drop you to 60 Hz on its own. A small watcher
+(`power-refresh watch`, started from `autostart.lua`) re-applies the rate
+when the profile or power source changes, so Omarchy's own menu and
+`powerprofilesctl` still work. Startup (`monitors.lua`) and tablet rotation
+use the current rate.
+
+**Brightness** (`~/.local/bin/brightness-step`): the panel's very top raw
+step is a much brighter jump than anything below it, so 100% is set just
+under it, and the steps get finer near the top:
+
+| Keys | Action |
+|---|---|
+| Brightness up / down | 100 → 98 → 96 → 94 → 92 → 90, then 85 → 80 → … → 5 → 1 |
+| `SHIFT` + up / down | Boost (the panel's real maximum) / minimum |
+| `ALT` + up / down | ±1% |
+
+The display popup's slider uses the same scale, its **Boost** button toggles
+the top step, and login never starts in boost. External monitors keep
+Omarchy's normal steps.
+
 ### Dropdown apps (`~/.config/hypr/dropdowns.lua`)
 One key summons an app that slides down from the top. The same key hides it
 again. Every dropdown is preloaded hidden at login, so the first press is
@@ -127,12 +194,14 @@ instant. Scripts and menus can summon one too:
 
 | Key | App |
 |---|---|
-| `SUPER + T` | Terminal (kitty) |
+| `SUPER + T` | Terminal (Alacritty) |
 | `SUPER + C` | Claude Code |
 | `SUPER + I` | btop |
 | `SUPER + E` | Files (Nautilus); also the tablet menu's and app grid's Files buttons |
 | `SUPER + P` | Bitwarden, pinned to the top-right corner and sliding in from the right |
 | `SUPER + D` | Catfish file search over the whole drive (`/`, not just home) |
+| `SUPER + ALT + W` | GNOME Weather; also a left click on the bar's weather |
+| `SUPER + M` | Mullvad VPN, rising from the bottom (`rise = 1 / 3`) |
 
 Each entry can set its size (`px` or screen fractions), pin itself to the
 right edge (`right = 10`) and pick its own slide direction (`slide =
@@ -146,6 +215,14 @@ extra arguments, which is how the menu's file search opens Catfish already
 searching.
 
 ### Menus
+- **Go menu** (`SUPER + SPACE`, Arch logo): swings in from a hinge at its
+  top-left corner. A dashboard column holds a **Lab** card (VNC status of a
+  lab box; set `LAB_PROFILE` to your Remmina profile), a **Server** card
+  (services from `~/.config/lab-services/services`), a **System** card (CPU,
+  RAM, disk, temperature, uptime; click for btop) and a **Phone** card (KDE
+  Connect). The cards bounce in from the left, and the footer buttons (Apps,
+  Terminal, Keys, Tablet, System) are dealt out like cards. Try
+  `SUPER + CTRL + ALT + SPACE` for the version without brakes.
 - **Keybindings** (`SUPER + K`): borderless, hangs off the top-left corner
   and slides in from the left.
 - **Password dialog** (`daa.polkit`): rises from the bottom and rests a third
@@ -175,6 +252,12 @@ searching.
   workspace underneath, not inside the scratchpad.
 - Guards stop double-clicks and closing bar panels from bringing a hidden
   scratchpad back (see [Known quirks](#known-quirks)).
+- Hovering a bar popup open while a scratchpad is showing keeps the
+  scratchpad on screen, dimmed, until the popup closes. Summoning a dropdown
+  (click or key) while a popup is open closes the popup instead: whatever
+  you did last on purpose wins.
+- Every show / hide and guard decision is logged to
+  `~/.local/state/scratchpad-debug.log` while a rare pop-up bug is chased.
 
 ### Workspaces (`~/.config/hypr/workspace_collapse.lua`)
 Workspaces stay packed from 1. When one empties, the ones after it shift
@@ -257,6 +340,14 @@ These work in both modes and adapt to tablet mode on their own:
 | `daa.clipboard` | Clipboard manager: borderless, bottom-right, Clear all button |
 | `daa.polkit` | Password dialog: rises from the bottom, spins the fans up while waiting |
 | `daa.tray` | System tray whose collapsed drawer takes no room |
+| `daa.infobar` | Info bar on a tap of `SUPER`, plus the workspace flash |
+| `daa.network` | Wi-Fi popup with VPN toggles and Quad9 DNS |
+| `daa.power` | Battery popup with four power profiles |
+| `daa.monitor` | Display popup: refresh rate, toggles, brightness and boost |
+| `daa.audio` | Sound popup; left click on the icon mutes |
+| `daa.agents` | Claude usage; left click toggles the Claude Code dropdown |
+| `daa.weather` | Weather; left click toggles the GNOME Weather dropdown |
+| `daa.clock` | Clock and calendar popup (with the Reminder chip) |
 
 ---
 
@@ -299,6 +390,8 @@ CSS target a window by name if the app sets one, and Catfish doesn't.)
 |---|---|
 | **Brightness keys do nothing.** The OLED wants DPCD AUX backlight; the firmware says PWM. | Kernel option `xe.enable_dpcd_backlight=1` (Limine: drop-in in `/etc/limine-entry-tool.d/`, then `sudo limine-update`). |
 | **No rotation sensor.** ISH firmware is rejected. | Use the Yoga's own signed ISH firmware from its Windows install (DriverStore `ishheciextensiontemplate.inf_*/FwImage/0004/PTL_ishS_SI.bin`), installed as `/lib/firmware/updates/intel/ish/ish_ptl_<crc32 of "83SE">_<vendor crc>.bin.zst`. **Extract your own copy; don't redistribute the blob.** |
+| **5% brightness steps look uneven at the top.** The panel's top raw step (4095) is a much brighter jump than the one below it. | `brightness-step` puts 100% at raw 4054 and keeps the top step as "boost". |
+| **Stuck at 60 Hz.** The panel reports 60 Hz as preferred but does 48–120 Hz with adaptive sync. | Ask for `highrr`; per-monitor `vrr` is ignored on Hyprland 0.56, `misc.vrr` works (`power-refresh`). |
 | **PrtSc does nothing.** The key sends `XF86SelectiveScreenshot`. | Bind that keysym to `omarchy-capture-screenshot region`. |
 | **No speakers ("Dummy Output").** A ghost SoundWire device. | Fixed upstream in kernel **7.3** ("soundwire: dmi-quirks: add a global ghost list"). Waiting for Omarchy's 7.3 kernel. |
 | **Windows not in the Limine menu.** It's on a separate ESP. | Add a manual `/Windows` EFI chainload entry to `/boot/limine.conf`. |
@@ -317,7 +410,9 @@ CSS target a window by name if the app sets one, and Catfish doesn't.)
 `daa.tablet-media`.
 
 **Shared:** `daa.menu`, `daa.launcher`, `daa.osd`, `daa.background`,
-`daa.clipboard`, `daa.polkit`, `daa.tray`.
+`daa.clipboard`, `daa.polkit`, `daa.tray`, `daa.infobar`, `daa.network`,
+`daa.power`, `daa.monitor`, `daa.audio`, `daa.agents`, `daa.weather`,
+`daa.clock`.
 
 | Path | Mode | Purpose |
 |---|---|---|
@@ -332,6 +427,11 @@ CSS target a window by name if the app sets one, and Catfish doesn't.)
 | `~/.local/bin/file-search` | both | Opens the Catfish dropdown searching for its arguments |
 | `~/.local/bin/attention-fans` | both | Spins the fans up while the password dialog waits |
 | `~/.config/hypr/lid.lua`, `~/.local/bin/lid-battery-guard`, `~/.config/systemd/user/lid-battery-guard.service` | both | Lid closed: panel off, suspend only on low battery |
+| `~/.local/bin/power-refresh`, `~/.config/hypr/monitors.lua`, `autostart.lua` | both | Power profile → refresh rate / adaptive sync |
+| `~/.local/bin/brightness-step` | both | Brightness keys, slider scale and boost |
+| `~/.local/bin/infobar-status` | both | JSON for the info bar |
+| `~/.local/bin/mullvad-toggle` | both | Wi-Fi popup's Mullvad toggle (opens the app when logged out) |
+| `system/usr/local/bin/omarchy-dns-quad9`, `system/etc/sudoers.d/omarchy-dns-quad9` | both | Quad9 DNS preset (DNS-over-TLS, Cloudflare fallback) and its password-free sudo rule |
 | `~/.local/bin/lab-status` | desktop | Status line for the Go menu's lab card (set `LAB_PROFILE` to your Remmina profile) |
 | `~/.config/hypr/dropdowns.lua`, `scratchpads.lua`, `workspace_collapse.lua`, `screensaver_brightness.lua`, `looknfeel.lua`, `bindings.lua` | both | Hyprland behaviour |
 | `~/.config/hypr/tablet_mode.lua` | tablet | Fold switch → `tablet-mode on/off` |
@@ -351,8 +451,13 @@ CSS target a window by name if the app sets one, and Catfish doesn't.)
 3. Tablet extras: run `setup-tablet.sh`. It installs `iio-sensor-proxy`,
    `lisgd` and `wvkbd` (AUR), the reading and drawing apps, and adds you to
    the `input` group. Log out and back in afterwards.
-4. Desktop extras: `qt6ct`, `breeze`, `catfish` and `bitwarden` from the
-   official repos.
+4. Desktop extras: `qt6ct`, `breeze`, `catfish`, `bitwarden`, `wdisplays`
+   and `gnome-weather` from the official repos.
+   For the Quad9 option, install the helper root-owned and (optionally) the
+   sudo rule with your username in place of `YOUR_USER`:
+   `sudo install -m 0755 system/usr/local/bin/omarchy-dns-quad9 /usr/local/bin/`,
+   then check the rule with `visudo -cf` and
+   `sudo install -m 0440 system/etc/sudoers.d/omarchy-dns-quad9 /etc/sudoers.d/`.
 5. Apply the hardware fixes your machine needs.
 6. Run `omarchy restart shell`, then `hyprctl reload`, and re-apply your
    theme (`omarchy theme set "<theme>"`) so the templates and hook run.
@@ -372,7 +477,16 @@ touch and pen, panel `eDP-1`). Change the variables at the top of
   `/usr/share/omarchy/shell/` and port any fixes you want.
 - **Scratchpad flash.** On an empty workspace, closing a bar panel can make a
   hidden scratchpad flash for a split second before it's hidden again.
-  Hyprland hands focus back to it when nothing else can take it.
+  Hyprland hands focus back to it when nothing else can take it. Very rarely
+  one pops up on its own; `scratchpads.lua` logs everything to catch it.
+- **Hot reload goes stale.** Saving a plugin file sometimes leaves the old
+  code running alongside the new (even a second copy firing its own
+  pop-ups). `omarchy restart shell` fixes it.
+- **Weather over a VPN.** wttr.in guesses the location from your IP, which is
+  the VPN's exit server. Save your location with `omarchy-weather-location`.
+- **Some indicator services can't be reached from a plugin.** Omarchy's idle
+  service never resolves from the Stay awake chip, so it reads and writes the
+  same state file as `omarchy toggle idle` instead.
 - **No sound from the speakers yet.** The audio shows as "Dummy Output"
   because of a ghost SoundWire device. It's fixed upstream in kernel 7.3, and
   this machine is on 7.2, so it's waiting on Omarchy shipping a 7.3 kernel.

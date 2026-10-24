@@ -48,7 +48,7 @@ device_enabled() {
 rotate_to() {
   local t=$1
   hyprctl eval "
-    hl.monitor({ output = \"$OUTPUT\", mode = \"preferred\", position = \"auto\", scale = \"auto\", transform = $t })
+    hl.monitor({ output = \"$OUTPUT\", mode = \"$(power-refresh mode)\", position = \"auto\", scale = \"auto\", transform = $t })
     hl.config({ input = { touchdevice = { output = \"$OUTPUT\", transform = $t }, tablet = { output = \"$OUTPUT\", transform = $t } } })
   " >/dev/null
   echo "$t" > "$STATE_DIR/rotation"

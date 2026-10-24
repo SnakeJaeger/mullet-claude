@@ -562,10 +562,18 @@ Item {
       else if ("close" in activePopout) activePopout.close()
     }
     activePopout = owner
+    hoverSuppressSlot = null
   }
 
+  // A panel closing while the cursor rests on a hover-open icon was closed by
+  // clicking that icon (forwarded clicks only reach the bar under the
+  // cursor): keep it shut until the cursor leaves the icon and comes back.
   function releasePopout(owner) {
-    if (activePopout === owner) activePopout = null
+    if (activePopout !== owner) return
+    // Before clearing activePopout: that stops the cursor poll, which resets
+    // hoverSwitchSlot.
+    if (hoverSwitchSlot) hoverSuppressSlot = hoverSwitchSlot
+    activePopout = null
   }
 
   readonly property bool vertical: position === "left" || position === "right"
@@ -1216,6 +1224,16 @@ Item {
   IpcHandler {
     target: "omarchy.bar"
 
+    // A scratchpad/dropdown was summoned (click or key) while a panel was
+    // open: the deliberate action wins, so close the panel and keep the icon
+    // under the cursor from hover-opening it again until the cursor leaves.
+    function yieldPopout(): void {
+      root.hoverSuppressSlot = root.hoverSwitchSlot
+      for (var i = 0; i < root.moduleSlots.length && !root.hoverSuppressSlot; i++)
+        if (root.moduleSlots[i] && root.moduleSlots[i].hovered) root.hoverSuppressSlot = root.moduleSlots[i]
+      if (root.activePopout && "close" in root.activePopout) root.activePopout.close()
+    }
+
     // Start rather than restart: a probe already in flight was launched by the
     // directory watch after the flag flipped, so its answer is current, and
     // killing it here can swallow the result entirely.
@@ -1383,6 +1401,10 @@ Item {
     // the island (or on the flyout itself).
     // Apps dropdown: grows down out of the app island while the pointer rests
     // on the island (or on the dropdown itself).
+    // Indicator toggles (daa.desktop-indicators) for the sound / screen /
+    // calendar panels: [{ id, item, label }].
+    property var indicatorTiles: []
+
     property Item appIsland: null
     property bool appsIslandHovered: false
     property bool appsFlyoutHovered: false
@@ -1471,250 +1493,6 @@ Item {
       }
     }
 
-    // Quick-launch dropdown: drops below the left island (Arch button and
-    // workspaces) while the pointer rests on it or on the dropdown, styled
-    // like the clock and stats dropdowns.
-    property Item leftIsland: null
-    property bool quickIslandHovered: false
-    property bool quickFlyoutHovered: false
-    property bool quickFlyoutOpen: false
-    // Set by a click on the island (e.g. the Arch button opening the Go menu)
-    // so the card vanishes at once instead of fading over the menu.
-    property bool quickSnap: false
-
-    function dismissQuick() {
-      quickOpenTimer.stop()
-      quickCloseTimer.stop()
-      quickSnap = true
-      quickFlyoutOpen = false
-    }
-
-    function setQuickHover(which, hovered) {
-      if (which === "island") quickIslandHovered = hovered
-      else quickFlyoutHovered = hovered
-      if (quickIslandHovered || quickFlyoutHovered) {
-        quickCloseTimer.stop()
-        if (!quickFlyoutOpen) quickOpenTimer.restart()
-      } else {
-        quickOpenTimer.stop()
-        quickCloseTimer.restart()
-      }
-    }
-
-    Timer {
-      id: quickOpenTimer
-      interval: 250
-      onTriggered: if (!root.vertical && barWindow.leftIsland && !root.activePopout) {
-        barWindow.quickSnap = false
-        barWindow.quickFlyoutOpen = true
-      }
-    }
-
-    Timer {
-      id: quickCloseTimer
-      interval: 300
-      onTriggered: barWindow.quickFlyoutOpen = false
-    }
-
-    Connections {
-      target: root
-      function onActivePopoutChanged() { if (root.activePopout) barWindow.quickFlyoutOpen = false }
-    }
-
-    PopupWindow {
-      id: quickFlyoutWindow
-
-      readonly property int gap: Style.space(6)
-
-      visible: barWindow.leftIsland !== null && (barWindow.quickFlyoutOpen || quickPanel.opacity > 0)
-      color: "transparent"
-      implicitWidth: quickPanel.implicitWidth
-      implicitHeight: quickPanel.implicitHeight
-
-      anchor {
-        id: quickFlyoutAnchor
-        window: barWindow
-        adjustment: PopupAdjustment.None
-        edges: Edges.Top | Edges.Left
-        gravity: Edges.Bottom | Edges.Right
-        rect.width: 1
-        rect.height: 1
-
-        onAnchoring: {
-          var island = barWindow.leftIsland
-          if (!island) return
-          var point = barWindow.contentItem.mapFromItem(island, -root.pillPadding, 0)
-          quickFlyoutAnchor.rect.x = Math.round(point.x)
-          quickFlyoutAnchor.rect.y = root.barSize - root.pillInset + quickFlyoutWindow.gap
-        }
-      }
-
-      Rectangle {
-        id: quickPanel
-
-        readonly property int pad: Style.space(8)
-
-        implicitWidth: quickRow.implicitWidth + pad * 2
-        implicitHeight: quickRow.implicitHeight + pad * 2
-        width: implicitWidth
-        height: implicitHeight
-        radius: Style.space(14)
-        color: Qt.rgba(0, 0, 0, 0.6)
-        opacity: barWindow.quickFlyoutOpen ? 1 : 0
-        transformOrigin: Item.TopLeft
-        scale: barWindow.quickFlyoutOpen ? 1 : 0.92
-
-        Behavior on opacity { enabled: !barWindow.quickSnap; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-        Behavior on scale { enabled: !barWindow.quickSnap; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-
-        HoverHandler {
-          onHoveredChanged: barWindow.setQuickHover("flyout", hovered)
-        }
-
-        Row {
-          id: quickRow
-          anchors.centerIn: parent
-          spacing: Style.space(4)
-
-          QuickTile {
-            glyph: "󰀻"
-            caption: "Apps"
-            command: "omarchy-shell shell toggle daa.launcher"
-            onLaunched: barWindow.quickFlyoutOpen = false
-          }
-          QuickTile {
-            glyph: "\uf120"
-            caption: "Terminal"
-            command: "hyprctl eval 'dropdown_show(\"terminal\")'"
-            onLaunched: barWindow.quickFlyoutOpen = false
-          }
-          QuickTile {
-            glyph: "󰉋"
-            caption: "Files"
-            command: "hyprctl eval 'dropdown_show(\"files\")'"
-            onLaunched: barWindow.quickFlyoutOpen = false
-          }
-          QuickTile {
-            glyph: "\ue7aa"
-            caption: "Sublime"
-            command: "uwsm-app -- subl"
-            onLaunched: barWindow.quickFlyoutOpen = false
-          }
-          QuickTile {
-            glyph: "󰌌"
-            caption: "Keybindings"
-            command: "~/.local/bin/menu-toggle 'dmenu:Keybindings' omarchy-menu-keybindings"
-            onLaunched: barWindow.quickFlyoutOpen = false
-          }
-        }
-      }
-    }
-
-    property Item rightIsland: null
-    property bool statsIslandHovered: false
-    property bool statsFlyoutHovered: false
-    property bool statsFlyoutOpen: false
-
-    function setStatsHover(which, hovered) {
-      if (which === "island") statsIslandHovered = hovered
-      else statsFlyoutHovered = hovered
-      if (statsIslandHovered || statsFlyoutHovered) {
-        statsCloseTimer.stop()
-        if (!statsFlyoutOpen) statsOpenTimer.restart()
-      } else {
-        statsOpenTimer.stop()
-        statsCloseTimer.restart()
-      }
-    }
-
-    onStatsFlyoutOpenChanged: root.statsFlyoutOpenCount += statsFlyoutOpen ? 1 : -1
-    Component.onDestruction: if (statsFlyoutOpen) root.statsFlyoutOpenCount--
-
-    Timer {
-      id: statsOpenTimer
-      interval: 250
-      onTriggered: if (!root.vertical && barWindow.rightIsland && !root.activePopout) barWindow.statsFlyoutOpen = true
-    }
-
-    Timer {
-      id: statsCloseTimer
-      interval: 300
-      onTriggered: barWindow.statsFlyoutOpen = false
-    }
-
-    // A widget panel opening (audio, network, ...) takes over.
-    Connections {
-      target: root
-      function onActivePopoutChanged() { if (root.activePopout) barWindow.statsFlyoutOpen = false }
-    }
-
-    // Drops below the right island, right edges aligned, styled like the
-    // clock island's indicator dropdown (daa.desktop-indicators).
-    PopupWindow {
-      id: statsFlyoutWindow
-
-      readonly property int gap: Style.space(6)
-
-      visible: barWindow.rightIsland !== null && (barWindow.statsFlyoutOpen || statsPanel.opacity > 0)
-      color: "transparent"
-      implicitWidth: statsPanel.implicitWidth
-      implicitHeight: statsPanel.implicitHeight
-
-      anchor {
-        id: statsFlyoutAnchor
-        window: barWindow
-        adjustment: PopupAdjustment.None
-        edges: Edges.Top | Edges.Left
-        gravity: Edges.Bottom | Edges.Left
-        rect.width: 1
-        rect.height: 1
-
-        onAnchoring: {
-          var island = barWindow.rightIsland
-          if (!island) return
-          var point = barWindow.contentItem.mapFromItem(island, island.width + root.pillPadding, 0)
-          statsFlyoutAnchor.rect.x = Math.round(point.x)
-          statsFlyoutAnchor.rect.y = root.barSize - root.pillInset + statsFlyoutWindow.gap
-        }
-      }
-
-      Rectangle {
-        id: statsPanel
-
-        readonly property int pad: Style.space(8)
-
-        implicitWidth: statsContent.implicitWidth + pad * 2
-        implicitHeight: statsContent.implicitHeight + pad * 2
-        width: implicitWidth
-        height: implicitHeight
-        radius: Style.space(14)
-        color: Qt.rgba(0, 0, 0, 0.6)
-        opacity: barWindow.statsFlyoutOpen ? 1 : 0
-        transformOrigin: Item.TopRight
-        scale: barWindow.statsFlyoutOpen ? 1 : 0.92
-
-        Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-        Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-
-        StatsFlyoutContent {
-          id: statsContent
-          anchors.centerIn: parent
-        }
-
-        HoverHandler {
-          cursorShape: Qt.PointingHandCursor
-          onHoveredChanged: barWindow.setStatsHover("flyout", hovered)
-        }
-
-        TapHandler {
-          // Same as the SUPER + I dropdown bind in ~/.config/hypr/dropdowns.lua.
-          onTapped: root.run("hyprctl clients -j | jq -e 'any(.[]; .class == \"dropdown.btop\")' >/dev/null"
-            + " || { uwsm-app -- kitty --class=dropdown.btop btop & }; "
-            + "hyprctl dispatch 'hl.dsp.workspace.toggle_special(\"dropdown-btop\")'")
-        }
-      }
-    }
-
     Component {
       id: horizontalBar
 
@@ -1785,26 +1563,6 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           // +1 top padding inside the left island (pill size is unchanged).
           anchors.verticalCenterOffset: 1
-          Component.onCompleted: barWindow.leftIsland = leftModules
-          Component.onDestruction: if (barWindow.leftIsland === leftModules) barWindow.leftIsland = null
-
-          HoverHandler {
-            onHoveredChanged: barWindow.setQuickHover("island", hovered)
-            Component.onDestruction: if (hovered) barWindow.setQuickHover("island", false)
-          }
-        }
-
-        // Any click on the left island hides the quick card straight away (e.g.
-        // the Arch button opening the Go menu). It sits above the island so it
-        // sees the press before the button's own MouseArea grabs it; the grab
-        // is passive, so the button and workspaces still get the click.
-        Item {
-          anchors.fill: leftModules
-          z: 10
-          PointHandler {
-            acceptedButtons: Qt.AllButtons
-            onActiveChanged: if (active) barWindow.dismissQuick()
-          }
         }
 
         RightModules {
@@ -1812,14 +1570,6 @@ Item {
           anchors.right: parent.right
           anchors.rightMargin: Style.space(8) + root.pillPadding
           anchors.verticalCenter: parent.verticalCenter
-          Component.onCompleted: barWindow.rightIsland = rightModules
-          Component.onDestruction: if (barWindow.rightIsland === rightModules) barWindow.rightIsland = null
-
-          // An ancestor of the widgets, so it stays hovered over them.
-          HoverHandler {
-            onHoveredChanged: barWindow.setStatsHover("island", hovered)
-            Component.onDestruction: if (hovered) barWindow.setStatsHover("island", false)
-          }
         }
       }
     }
@@ -1993,74 +1743,61 @@ Item {
   // the left island; the middle island sits between the center and right.
   readonly property var appEntries: [{ id: "daa.desktop-app-name" }]
   readonly property var middleEntries: [{ id: "daa.desktop-media" }]
+  readonly property var hoverOpenIds: [
+    "daa.agents", "omarchy.bluetooth", "daa.network", "daa.audio",
+    "daa.monitor", "daa.power", "daa.clock", "daa.weather"
+  ]
 
-  // System stats for the right island's hover flyout. One sampler serves every
-  // monitor's bar and only polls while some flyout is open.
-  property int statsFlyoutOpenCount: 0
-  property real statsCpuPercent: -1
-  property real statsMemUsed: 0
-  property real statsMemTotal: 0
-  property real statsSwapUsed: 0
-  property real statsDiskUsed: 0
-  property real statsDiskTotal: 0
-  property real statsTemp: -1
-  property int statsUptime: 0
+  // While a panel is open its full-screen layer covers the bar and only
+  // forwards clicks, so the bar never sees hover. Poll the cursor instead, so
+  // resting on another hover-open icon (root.hoverOpenIds) still switches to
+  // its panel, the same as when nothing is open.
+  property var hoverSwitchSlot: null
+  property var hoverSuppressSlot: null
+  property real hoverSwitchSince: 0
 
-  function parseStats(text) {
-    var lines = String(text || "").split("\n")
-    for (var i = 0; i < lines.length; i++) {
-      var f = lines[i].trim().split(/\s+/)
-      // Two /proc/stat readings a quarter second apart, so the card has a
-      // CPU figure as soon as it opens: cpu total1 idle1 total2 idle2.
-      if (f[0] === "cpu" && f.length >= 5) {
-        var dTotal = Number(f[3]) - Number(f[1]), dIdle = Number(f[4]) - Number(f[2])
-        if (dTotal > 0) statsCpuPercent = 100 * (1 - dIdle / dTotal)
-      } else if (f[0] === "mem" && f.length >= 5) {
-        statsMemTotal = Number(f[1]) * 1024
-        statsMemUsed = (Number(f[1]) - Number(f[2])) * 1024
-        statsSwapUsed = (Number(f[3]) - Number(f[4])) * 1024
-      } else if (f[0] === "disk" && f.length >= 3) {
-        statsDiskTotal = Number(f[1])
-        statsDiskUsed = Number(f[2])
-      } else if (f[0] === "temp" && f.length >= 2) {
-        statsTemp = Number(f[1]) / 1000
-      } else if (f[0] === "up" && f.length >= 2) {
-        statsUptime = Number(f[1])
+  function hoverSwitchAt(text) {
+    var p
+    try { p = JSON.parse(text) } catch (e) { return }
+    var found = null
+    for (var i = 0; i < moduleSlots.length; i++) {
+      var slot = moduleSlots[i]
+      if (!slot || !slot.opensOnHover || !slot.visible || slot.width <= 0 || !slot.activeItem) continue
+      var win = slotWindow(slot)
+      if (!win || !win.screen || typeof win.itemPosition !== "function") continue
+      var pos = win.itemPosition(slot)
+      var sx = win.screen.x + pos.x
+      var sy = win.screen.y
+      if (p.x >= sx && p.x < sx + slot.width && p.y >= sy && p.y < sy + barSize) {
+        found = slot
+        break
       }
     }
-  }
-
-  function formatGiB(bytes, decimals) {
-    return (bytes / 1073741824).toFixed(decimals)
-  }
-
-  function formatUptime(seconds) {
-    var d = Math.floor(seconds / 86400)
-    var h = Math.floor(seconds % 86400 / 3600)
-    var m = Math.floor(seconds % 3600 / 60)
-    if (d > 0) return d + "d " + h + "h"
-    if (h > 0) return h + "h " + m + "m"
-    return m + "m"
+    // The bar never saw hover under the closed panel, so release a
+    // yieldPopout suppression by position once the cursor is off that icon.
+    if (hoverSuppressSlot && found !== hoverSuppressSlot) hoverSuppressSlot = null
+    if (found !== hoverSwitchSlot) {
+      hoverSwitchSlot = found
+      hoverSwitchSince = Date.now()
+      return
+    }
+    if (found && found !== hoverSuppressSlot && Date.now() - hoverSwitchSince >= 200 && found.activeItem.opened !== true
+        && typeof found.activeItem.open === "function")
+      found.activeItem.open()
   }
 
   Process {
-    id: statsProc
-    command: ["sh", "-c",
-      "read _ u n s i w q sq st _ < /proc/stat; t1=$((u+n+s+i+w+q+sq+st)); i1=$((i+w)); sleep 0.25; " +
-      "read _ u n s i w q sq st _ < /proc/stat; echo cpu $t1 $i1 $((u+n+s+i+w+q+sq+st)) $((i+w)); " +
-      "awk '/^MemTotal/{t=$2} /^MemAvailable/{a=$2} /^SwapTotal/{st=$2} /^SwapFree/{sf=$2} END{print \"mem\",t,a,st,sf}' /proc/meminfo; " +
-      "df -B1 --output=size,used / | tail -n1 | sed 's/^/disk /'; " +
-      "for h in /sys/class/hwmon/hwmon*; do [ \"$(cat $h/name)\" = coretemp ] && echo temp $(cat $h/temp1_input); done; " +
-      "echo up $(cut -d. -f1 /proc/uptime)"]
-    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.parseStats(text) }
+    id: cursorProc
+    command: ["hyprctl", "cursorpos", "-j"]
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.hoverSwitchAt(text) }
   }
 
   Timer {
-    interval: 1500
-    running: root.statsFlyoutOpenCount > 0
+    interval: 120
     repeat: true
-    triggeredOnStart: true
-    onTriggered: if (!statsProc.running) statsProc.running = true
+    running: (root.activePopout !== null || root.hoverSuppressSlot !== null) && !root.vertical
+    onRunningChanged: root.hoverSwitchSlot = null
+    onTriggered: if (!cursorProc.running) cursorProc.running = true
   }
 
   // Open windows by workspace for the app island's hover dropdown: one row per
@@ -2189,142 +1926,6 @@ Item {
           }
         }
       }
-    }
-  }
-
-  // A quick-launch dropdown tile: big glyph over a caption, accent on hover,
-  // like the clock dropdown's indicator tiles.
-  component QuickTile: Rectangle {
-    id: quickTile
-    property string glyph: ""
-    property string caption: ""
-    property string command: ""
-    signal launched()
-    readonly property color ink: quickTileHover.hovered ? Commons.Color.accent : root.barForeground
-
-    width: Style.space(76)
-    height: quickColumn.implicitHeight + Style.space(14)
-    radius: Style.space(10)
-    color: quickTileHover.hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
-
-    Behavior on color { ColorAnimation { duration: 120 } }
-
-    Column {
-      id: quickColumn
-      anchors.centerIn: parent
-      spacing: Style.space(4)
-
-      Text {
-        anchors.horizontalCenter: parent.horizontalCenter
-        text: quickTile.glyph
-        color: quickTile.ink
-        font.family: root.fontFamily
-        font.pixelSize: Math.round(Style.bar.iconFont * 1.6)
-        Behavior on color { ColorAnimation { duration: 120 } }
-      }
-
-      Text {
-        anchors.horizontalCenter: parent.horizontalCenter
-        textFormat: Text.PlainText
-        text: quickTile.caption
-        color: quickTile.ink
-        opacity: 0.9
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-        Behavior on color { ColorAnimation { duration: 120 } }
-      }
-    }
-
-    HoverHandler { id: quickTileHover; cursorShape: Qt.PointingHandCursor }
-    TapHandler {
-      onTapped: {
-        root.run(quickTile.command)
-        quickTile.launched()
-      }
-    }
-  }
-
-  component StatItem: Item {
-    id: statItem
-    property string glyph: ""
-    property string value: ""
-    property string caption: ""
-    property bool warn: false
-    readonly property color ink: warn ? root.urgent : root.barForeground
-
-    width: Style.space(76)
-    height: statColumn.implicitHeight + Style.space(14)
-
-    Column {
-      id: statColumn
-      anchors.centerIn: parent
-      spacing: Style.space(3)
-
-      Text {
-        anchors.horizontalCenter: parent.horizontalCenter
-        text: statItem.glyph
-        color: statItem.ink
-        font.family: root.fontFamily
-        font.pixelSize: Math.round(Style.bar.iconFont * 1.6)
-      }
-
-      Text {
-        anchors.horizontalCenter: parent.horizontalCenter
-        textFormat: Text.PlainText
-        text: statItem.value
-        color: statItem.ink
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.body
-      }
-
-      Text {
-        anchors.horizontalCenter: parent.horizontalCenter
-        textFormat: Text.PlainText
-        text: statItem.caption
-        color: statItem.ink
-        opacity: 0.7
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-      }
-    }
-  }
-
-  component StatsFlyoutContent: Row {
-    id: statsRow
-    spacing: Style.space(4)
-
-    readonly property real memPercent: root.statsMemTotal > 0 ? 100 * root.statsMemUsed / root.statsMemTotal : 0
-    readonly property real diskPercent: root.statsDiskTotal > 0 ? 100 * root.statsDiskUsed / root.statsDiskTotal : 0
-
-    StatItem {
-      glyph: "󰻠"
-      value: root.statsCpuPercent < 0 ? "…" : Math.round(root.statsCpuPercent) + "%"
-      caption: "CPU"
-      warn: root.statsCpuPercent >= 90
-    }
-    StatItem {
-      glyph: "󰍛"
-      value: root.formatGiB(root.statsMemUsed, 1) + "/" + root.formatGiB(root.statsMemTotal, 0) + "G"
-      caption: root.statsSwapUsed > 104857600 ? "RAM +" + root.formatGiB(root.statsSwapUsed, 1) + " swap" : "RAM"
-      warn: statsRow.memPercent >= 90
-    }
-    StatItem {
-      glyph: "󰋊"
-      value: root.formatGiB(root.statsDiskUsed, 0) + "/" + root.formatGiB(root.statsDiskTotal, 0) + "G"
-      caption: "Disk"
-      warn: statsRow.diskPercent >= 90
-    }
-    StatItem {
-      visible: root.statsTemp >= 0
-      glyph: "󰔏"
-      value: Math.round(root.statsTemp) + "°"
-      caption: "Temp"
-      warn: root.statsTemp >= 90
-    }
-    StatItem {
-      glyph: "󰅐"
-      value: root.formatUptime(root.statsUptime)
-      caption: "Uptime"
     }
   }
 
@@ -2655,6 +2256,24 @@ Item {
     }
 
     HoverHandler { id: moduleHover }
+
+    // The status icons, the clock and the weather open their panel on hover
+    // as if clicked; clicking still toggles it. See root.hoverOpenIds.
+    readonly property bool opensOnHover: !root.vertical && root.hoverOpenIds.indexOf(moduleName) !== -1
+    onHoveredChanged: {
+      if (!opensOnHover) return
+      if (hovered) hoverOpenTimer.restart()
+      else hoverOpenTimer.stop()
+    }
+
+    Timer {
+      id: hoverOpenTimer
+      interval: 200
+      onTriggered: {
+        var item = slot.activeItem
+        if (slot.hovered && slot !== root.hoverSuppressSlot && item && typeof item.open === "function" && item.opened !== true) item.open()
+      }
+    }
 
     BorderSurface {
       visible: slot.dragSource

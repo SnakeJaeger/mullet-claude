@@ -631,7 +631,7 @@ Item {
       var item = moduleSlots[i] ? moduleSlots[i].activeItem : null
       if (!item) continue
       if (typeof item.close === "function") item.close()
-      if (item.expanded === true) item.expanded = false
+      if (item.keepOpen === true) item.keepOpen = false
     }
   }
 
@@ -1631,7 +1631,7 @@ Item {
         TapHandler {
           // Same as the SUPER + I dropdown bind in ~/.config/hypr/dropdowns.lua.
           onTapped: root.run("hyprctl clients -j | jq -e 'any(.[]; .class == \"dropdown.btop\")' >/dev/null"
-            + " || { uwsm-app -- kitty --class=dropdown.btop btop & }; "
+            + " || { uwsm-app -- alacritty --class dropdown.btop -e btop & }; "
             + "hyprctl dispatch 'hl.dsp.workspace.toggle_special(\"dropdown-btop\")'")
         }
       }
